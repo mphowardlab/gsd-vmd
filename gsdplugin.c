@@ -9,10 +9,13 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
+//! GSD handle object
+typedef struct gsd_handle gsd_handle_t;
+
 //! GSD trajectory
 typedef struct
     {
-    struct gsd_handle handle;   //!< GSD file handle
+    gsd_handle_t* handle;  //!< GSD file handle
     int frame;                  //!< Current frame index
     int numframes;              //!< Number of frames in gsd file
     int natoms;                 //!< Number of atoms in first frame
@@ -32,6 +35,8 @@ static gsd_trajectory_t* allocate_gsd_trajectory()
 
     if (gsd)
         {
+        gsd->handle = NULL;
+
         gsd->frame = 0;
         gsd->numframes = 0;
 
@@ -130,7 +135,13 @@ static void free_gsd_trajectory(gsd_trajectory_t *gsd)
     {
     if (gsd)
         {
-        gsd_close(&gsd->handle);
+        if (gsd->handle)
+            {
+            gsd_close(gsd->handle);
+            free(gsd->handle);
+            }
+        gsd->handle = NULL;
+
         free_gsd_typemap(gsd);
         free_gsd_bonds(gsd);
         free_gsd_bondmap(gsd);
@@ -150,7 +161,7 @@ static void free_gsd_trajectory(gsd_trajectory_t *gsd)
  *
  * If \a expected_N is nonzero, then the chunk size is validated.
  */
-static int read_chunk(struct gsd_handle *handle,
+static int read_chunk(gsd_handle_t *handle,
                       void *data,
                       uint64_t frame,
                       const char *name,
@@ -212,7 +223,8 @@ static void *open_gsd_read(const char *filename, const char *filetype, int *nato
     gsd_trajectory_t *gsd = allocate_gsd_trajectory();
     if (!gsd) return NULL;
 
-    int retval = gsd_open(&gsd->handle, filename, GSD_OPEN_READONLY);
+    gsd->handle = (gsd_handle_t*)malloc(sizeof(gsd_handle_t));
+    int retval = gsd_open(gsd->handle, filename, GSD_OPEN_READONLY);
     if (retval == -1)
         {
         vmdcon_printf(VMDCON_ERROR, "gsd) '%s': %s\n", filename, strerror(errno));
@@ -247,11 +259,11 @@ static void *open_gsd_read(const char *filename, const char *filetype, int *nato
     // validate schema
 
     // validate that at least one frame is written (is this just given?)
-    gsd->numframes = gsd_get_nframes(&gsd->handle);
+    gsd->numframes = gsd_get_nframes(gsd->handle);
 
     // read the number of particles
     *natoms = 0;
-    read_chunk(&gsd->handle, natoms, 0, "particles/N", 4, 0);
+    read_chunk(gsd->handle, natoms, 0, "particles/N", 4, 0);
     if (*natoms == 0)
         {
         vmdcon_printf(VMDCON_ERROR, "gsd) No particles found in first frame of '%s'\n", filename);
@@ -276,12 +288,12 @@ static void *open_gsd_read(const char *filename, const char *filetype, int *nato
  */
 static int read_typemap(gsd_trajectory_t *gsd, molfile_atom_t *atoms)
     {
-    const struct gsd_index_entry* entry = gsd_find_chunk(&gsd->handle, 0, "particles/types");
+    const struct gsd_index_entry* entry = gsd_find_chunk(gsd->handle, 0, "particles/types");
     if (entry != NULL) // types are present
         {
         size_t actual_size = entry->N * entry->M * gsd_sizeof_type((enum gsd_type)entry->type);
         char* data = (char*)malloc(actual_size);
-        int retval = gsd_read_chunk(&gsd->handle, data, entry);
+        int retval = gsd_read_chunk(gsd->handle, data, entry);
         if (retval == -1)
             {
             vmdcon_printf(VMDCON_ERROR, "gsd) Type mapping 'particles/types' : %s\n", strerror(errno));
@@ -348,12 +360,12 @@ static int read_typemap(gsd_trajectory_t *gsd, molfile_atom_t *atoms)
  */
 static int read_bondmap(gsd_trajectory_t *gsd, const char *name, int *numbondtypes, char ***bondmap)
     {
-    const struct gsd_index_entry* entry = gsd_find_chunk(&gsd->handle, 0, name);
+    const struct gsd_index_entry* entry = gsd_find_chunk(gsd->handle, 0, name);
     if (entry != NULL) // types are present
         {
         size_t actual_size = entry->N * entry->M * gsd_sizeof_type((enum gsd_type)entry->type);
         char* data = (char*)malloc(actual_size);
-        int retval = gsd_read_chunk(&gsd->handle, data, entry);
+        int retval = gsd_read_chunk(gsd->handle, data, entry);
         if (retval == -1)
             {
             vmdcon_printf(VMDCON_ERROR, "gsd) Type mapping '%s' : %s\n", name, strerror(errno));
@@ -409,7 +421,7 @@ static int read_gsd_structure(void *mydata, int *optflags, molfile_atom_t *atoms
         {
         if (read_typemap(gsd, atoms) != MOLFILE_SUCCESS) return MOLFILE_ERROR;
         uint32_t *typeid = (uint32_t*)calloc(gsd->natoms, sizeof(uint32_t));
-        int retval = read_chunk(&gsd->handle, typeid, 0, "particles/typeid", gsd->natoms * sizeof(uint32_t), gsd->natoms);
+        int retval = read_chunk(gsd->handle, typeid, 0, "particles/typeid", gsd->natoms * sizeof(uint32_t), gsd->natoms);
         if (retval == 0 || retval == -3)
             {
             molfile_atom_t *a = atoms;
@@ -440,7 +452,7 @@ static int read_gsd_structure(void *mydata, int *optflags, molfile_atom_t *atoms
     float *props = (float*)calloc(gsd->natoms, sizeof(float));
     // mass
         {
-        int retval = read_chunk(&gsd->handle, props, 0, "particles/mass", gsd->natoms * sizeof(float), gsd->natoms);
+        int retval = read_chunk(gsd->handle, props, 0, "particles/mass", gsd->natoms * sizeof(float), gsd->natoms);
         if (retval == 0)
             {
             molfile_atom_t *a = atoms;
@@ -461,7 +473,7 @@ static int read_gsd_structure(void *mydata, int *optflags, molfile_atom_t *atoms
         }
     // charge
         {
-        int retval = read_chunk(&gsd->handle, props, 0, "particles/charge", gsd->natoms * sizeof(float), gsd->natoms);
+        int retval = read_chunk(gsd->handle, props, 0, "particles/charge", gsd->natoms * sizeof(float), gsd->natoms);
         if (retval == 0)
             {
             molfile_atom_t *a = atoms;
@@ -482,7 +494,7 @@ static int read_gsd_structure(void *mydata, int *optflags, molfile_atom_t *atoms
         }
     // radius
         {
-        int retval = read_chunk(&gsd->handle, props, 0, "particles/diameter", gsd->natoms * sizeof(float), gsd->natoms);
+        int retval = read_chunk(gsd->handle, props, 0, "particles/diameter", gsd->natoms * sizeof(float), gsd->natoms);
         if (retval == 0)
             {
             molfile_atom_t *a = atoms;
@@ -533,7 +545,7 @@ static int read_gsd_bonds(void *mydata,
     *bondtypename = NULL;
 
     // check number of bonds and exit early if no bonds are present, or on read error
-    int retval = read_chunk(&gsd->handle, &gsd->nbonds,  0, "bonds/N", sizeof(int), 0);
+    int retval = read_chunk(gsd->handle, &gsd->nbonds,  0, "bonds/N", sizeof(int), 0);
     if (retval == -3 || gsd->nbonds == 0)
         {
         // return without reading bonds if are not present
@@ -554,7 +566,7 @@ static int read_gsd_bonds(void *mydata,
 
     // read in the bonds, and remap them with 1-indexing
     uint32_t *bonds = (uint32_t*)calloc(2*gsd->nbonds, sizeof(uint32_t));
-    retval = read_chunk(&gsd->handle, bonds, 0, "bonds/group", 2*gsd->nbonds*sizeof(uint32_t), gsd->nbonds);
+    retval = read_chunk(gsd->handle, bonds, 0, "bonds/group", 2*gsd->nbonds*sizeof(uint32_t), gsd->nbonds);
     if (retval != 0)
         {
         free(bonds);
@@ -591,7 +603,7 @@ static int read_gsd_timestep_metadata(void *mydata, molfile_timestep_metadata_t 
 
     meta->count = gsd->numframes;
 
-    const struct gsd_index_entry* entry = gsd_find_chunk(&gsd->handle, 0, "particles/velocity");
+    const struct gsd_index_entry* entry = gsd_find_chunk(gsd->handle, 0, "particles/velocity");
     meta->has_velocities = (entry != NULL);
 
     return MOLFILE_SUCCESS;
@@ -607,10 +619,10 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
         {
         // read the number of particles as a sanity check
         int cur_natoms = 0;
-        int retval = read_chunk(&gsd->handle, &cur_natoms, gsd->frame, "particles/N", sizeof(int), 0);
+        int retval = read_chunk(gsd->handle, &cur_natoms, gsd->frame, "particles/N", sizeof(int), 0);
         if (retval == -3)
             {
-            retval = read_chunk(&gsd->handle, &cur_natoms, 0, "particles/N", sizeof(int), 0);
+            retval = read_chunk(gsd->handle, &cur_natoms, 0, "particles/N", sizeof(int), 0);
             }
         if (retval != 0)
             {
@@ -627,7 +639,7 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
 
         // read frame timestep
         uint64_t timestep = 0;
-        retval = read_chunk(&gsd->handle, &timestep, gsd->frame, "configuration/step", sizeof(uint64_t), 0);
+        retval = read_chunk(gsd->handle, &timestep, gsd->frame, "configuration/step", sizeof(uint64_t), 0);
         if (retval == 0 || retval == -3)
             {
             ts->physical_time = (double)timestep;
@@ -641,10 +653,10 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
 
         // read the box size, and convert tilt factors to angles
         float box[6] = {1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f}; // default box specification
-        retval = read_chunk(&gsd->handle, box,  gsd->frame, "configuration/box", 6 * sizeof(float), 0);
+        retval = read_chunk(gsd->handle, box,  gsd->frame, "configuration/box", 6 * sizeof(float), 0);
         if (retval == -3) // extract from frame 0 otherwise
             {
-            retval = read_chunk(&gsd->handle, box, 0, "configuration/box", 6 * sizeof(float), 0);
+            retval = read_chunk(gsd->handle, box, 0, "configuration/box", 6 * sizeof(float), 0);
             }
         // if retval is still nonzero, then there was an error, abort
         if (retval != 0)
@@ -680,7 +692,7 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
             }
 
         // read positions
-        retval = read_chunk(&gsd->handle, ts->coords, gsd->frame, "particles/position", 3*gsd->natoms*sizeof(float), gsd->natoms);
+        retval = read_chunk(gsd->handle, ts->coords, gsd->frame, "particles/position", 3*gsd->natoms*sizeof(float), gsd->natoms);
         if (retval != 0)
             {
             vmdcon_printf(VMDCON_ERROR, "gsd) Error reading particle positions from frame %d, aborting.\n", gsd->frame);
@@ -691,10 +703,10 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
         // read frame velocities
         if (ts->velocities != NULL)
             {
-            retval = read_chunk(&gsd->handle, ts->velocities, gsd->frame, "particles/velocity", 3*gsd->natoms*sizeof(float), gsd->natoms);
+            retval = read_chunk(gsd->handle, ts->velocities, gsd->frame, "particles/velocity", 3*gsd->natoms*sizeof(float), gsd->natoms);
             if (retval == -3)
                 {
-                retval = read_chunk(&gsd->handle, ts->velocities, 0, "particles/velocity", 3*gsd->natoms*sizeof(float), gsd->natoms);
+                retval = read_chunk(gsd->handle, ts->velocities, 0, "particles/velocity", 3*gsd->natoms*sizeof(float), gsd->natoms);
                 }
             
             if (retval != 0)
