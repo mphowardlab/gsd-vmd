@@ -9,6 +9,9 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
+//! Macro to safely free and NULL a pointer
+#define SAFE_FREE(p) do{ if(p){ free(p); p = NULL; } } while(0)
+
 //! GSD handle object
 typedef struct gsd_handle gsd_handle_t;
 
@@ -29,11 +32,9 @@ static void reallocate_typemap(typemap_t* typemap, int ntypes)
         {
         for (int i=0; i < typemap->ntypes; ++i)
             {
-            if ((typemap->type)[i]) free((typemap->type)[i]);
-            (typemap->type)[i] = NULL;
+            SAFE_FREE(typemap->type[i]);
             }
-        free(typemap->type);
-        typemap->type = NULL;
+        SAFE_FREE(typemap->type);
         }
 
     typemap->ntypes = ntypes;
@@ -66,7 +67,7 @@ static void free_typemap(typemap_t* typemap)
         {
         // free any existing memory by calling a reallocation
         reallocate_typemap(typemap, 0);
-        free(typemap);
+        SAFE_FREE(typemap);
         }
     }
 
@@ -126,28 +127,24 @@ static void free_gsd_trajectory(gsd_trajectory_t *gsd)
         if (gsd->handle)
             {
             gsd_close(gsd->handle);
-            free(gsd->handle);
+            SAFE_FREE(gsd->handle);
             }
-        gsd->handle = NULL;
 
         free_typemap(gsd->typemap);
 
         gsd->nbonds = 0;
         if (gsd->bond_from)
             {
-            free(gsd->bond_from);
-            gsd->bond_from = NULL;
+            SAFE_FREE(gsd->bond_from);
             }
         if (gsd->bond_to)
             {
-            free(gsd->bond_to);
-            gsd->bond_to = NULL;
+            SAFE_FREE(gsd->bond_to);
             }
         free_typemap(gsd->bondmap);
 
-        free(gsd);
+        SAFE_FREE(gsd);
         }
-    gsd = NULL;
     }
 
 //! Read a chunk from the GSD file
@@ -295,21 +292,13 @@ static int read_typemap(gsd_trajectory_t *gsd, molfile_atom_t *atoms)
         int retval = gsd_read_chunk(gsd->handle, data, entry);
         if (retval == -1)
             {
-            if (data)
-                {
-                free(data);
-                data = NULL;
-                }
+            SAFE_FREE(data);
             vmdcon_printf(VMDCON_ERROR, "gsd) Type mapping 'particles/types' : %s\n", strerror(errno));
             return MOLFILE_ERROR;
             }
         else if (retval != 0)
             {
-            if (data)
-                {
-                free(data);
-                data = NULL;
-                }
+            SAFE_FREE(data);
             vmdcon_printf(VMDCON_ERROR, "gsd) Error reading type mapping 'particles/types'\n");
             return MOLFILE_ERROR;
             }
@@ -340,11 +329,7 @@ static int read_typemap(gsd_trajectory_t *gsd, molfile_atom_t *atoms)
             strncpy((gsd->typemap->type)[i], name, l);
             (gsd->typemap->type)[i][l] = '\0'; // force null termination
             }
-        if (data)
-            {
-            free(data);
-            data = NULL;
-            }
+        SAFE_FREE(data);
         }
     else
         {
@@ -397,18 +382,11 @@ static int read_gsd_structure(void *mydata, int *optflags, molfile_atom_t *atoms
             }
         else
             {
-            if (typeid)
-                {
-                free(typeid);
-                typeid = NULL;
-                }
+            SAFE_FREE(typeid);
             return MOLFILE_ERROR;
             }
-        if (typeid)
-            {
-            free(typeid);
-            typeid = NULL;
-            }
+
+        SAFE_FREE(typeid);
         }
 
     // try to set optional properties
@@ -426,11 +404,7 @@ static int read_gsd_structure(void *mydata, int *optflags, molfile_atom_t *atoms
             }
         else if (retval != -3)
             {
-            if (props)
-                {
-                free(props);
-                props = NULL;
-                }
+            SAFE_FREE(props);
             return MOLFILE_ERROR;
             }
         }
@@ -447,11 +421,7 @@ static int read_gsd_structure(void *mydata, int *optflags, molfile_atom_t *atoms
             }
         else if (retval != -3)
             {
-            if (props)
-                {
-                free(props);
-                props = NULL;
-                }
+            SAFE_FREE(props);
             return MOLFILE_ERROR;
             }
         }
@@ -468,19 +438,11 @@ static int read_gsd_structure(void *mydata, int *optflags, molfile_atom_t *atoms
             }
         else if (retval != -3)
             {
-            if (props)
-                {
-                free(props);
-                props = NULL;
-                }
+            SAFE_FREE(props);
             return MOLFILE_ERROR;
             }
         }
-    if (props)
-        {
-        free(props);
-        props = NULL;
-        }
+    SAFE_FREE(props);
 
     return MOLFILE_SUCCESS;
     }
@@ -508,21 +470,13 @@ static int read_bondmap(gsd_handle_t *handle,
         int retval = gsd_read_chunk(handle, data, entry);
         if (retval == -1)
             {
-            if (data)
-                {
-                free(data);
-                data = NULL;
-                }
+            SAFE_FREE(data);
             vmdcon_printf(VMDCON_ERROR, "gsd) Type mapping '%s' : %s\n", name, strerror(errno));
             return MOLFILE_ERROR;
             }
         else if (retval != 0)
             {
-            if (data)
-                {
-                free(data);
-                data = NULL;
-                }
+            SAFE_FREE(data);
             vmdcon_printf(VMDCON_ERROR, "gsd) Error reading type mapping '%s'\n", name);
             return MOLFILE_ERROR;
             }
@@ -542,11 +496,7 @@ static int read_bondmap(gsd_handle_t *handle,
                 bondmap->type[i][l] = '\0'; // force null termination
                 }
             }
-        if (data)
-            {
-            free(data);
-            data = NULL;
-            }
+        SAFE_FREE(data);
         }
 
     return MOLFILE_SUCCESS;
@@ -598,8 +548,7 @@ static int read_gsd_bonds(void *mydata,
     retval = read_chunk(gsd->handle, bonds, 0, "bonds/group", 2*gsd->nbonds*sizeof(uint32_t), gsd->nbonds);
     if (retval != 0)
         {
-        free(bonds);
-        bonds = NULL;
+        SAFE_FREE(bonds);
         return MOLFILE_ERROR;
         }
     gsd->bond_from = (int*)malloc(gsd->nbonds * sizeof(int));
@@ -609,12 +558,7 @@ static int read_gsd_bonds(void *mydata,
         gsd->bond_from[i] = bonds[2*i] + 1;
         gsd->bond_to[i] = bonds[2*i+1] + 1;
         }
-    // safe-free of the temporary data now that we are done with it
-    if (bonds)
-        {
-        free(bonds);
-        bonds = NULL;
-        }
+    SAFE_FREE(bonds);
 
     // successful read, so set pointers now
     *nbonds = gsd->nbonds;
@@ -812,11 +756,7 @@ int main(int argc, char *argv[])
     int optflags;
     if (read_gsd_structure(v, &optflags, atoms) != MOLFILE_SUCCESS)
         {
-        if (atoms)
-            {
-            free(atoms);
-            atoms = NULL;
-            }
+        SAFE_FREE(atoms);
         close_gsd_read(v);
         return 1;
         }
@@ -833,7 +773,7 @@ int main(int argc, char *argv[])
 
     close_gsd_read(v);
 
-    free(atoms);
+    SAFE_FREE(atoms);
 
     VMDPLUGIN_fini();
     return 0;
