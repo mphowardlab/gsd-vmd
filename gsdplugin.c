@@ -77,8 +77,7 @@ typedef struct
     int frame;                  //!< Current frame index
     int numframes;              //!< Number of frames in gsd file
     int natoms;                 //!< Number of atoms in first frame
-    int numtypes;               //!< Number of types
-    char **typemap;             //!< Names of types
+    typemap_t *typemap;         //!< Type map
 
     int nbonds;                 //!< Number of bonds
     int *bond_from;             //!< First particle in bond (1-indexed)
@@ -98,8 +97,7 @@ static gsd_trajectory_t* allocate_gsd_trajectory()
         gsd->numframes = 0;
 
         gsd->natoms = 0;
-        gsd->numtypes = 0;
-        gsd->typemap = NULL;
+        gsd->typemap = allocate_typemap(0);
 
         gsd->nbonds = 0;
         gsd->bond_from = NULL;
@@ -108,32 +106,6 @@ static gsd_trajectory_t* allocate_gsd_trajectory()
         }
 
     return gsd;
-    }
-
-//! Free the typemap from the gsd trajectory
-/*!
- * \param gsd GSD trajectory object
- *
- * \post All memory in the typemap is freed, the number of types is zeroed, and
- *       all pointers are set to NULL.
- *
- * This function is safe to call even if the type map is not allocated.
- */
-static void free_gsd_typemap(gsd_trajectory_t *gsd)
-    {
-    if (gsd->typemap)
-        {
-        // free the typemap memory if it has been allocated
-        for (int i=0; i < gsd->numtypes; ++i)
-            {
-            if (gsd->typemap[i]) free(gsd->typemap[i]);
-            gsd->typemap[i] = NULL;
-            }
-        gsd->numtypes = 0;
-
-        free(gsd->typemap);
-        gsd->typemap = NULL;
-        }
     }
 
 //! Free the bonds from the gsd trajectory
@@ -182,7 +154,7 @@ static void free_gsd_trajectory(gsd_trajectory_t *gsd)
             }
         gsd->handle = NULL;
 
-        free_gsd_typemap(gsd);
+        free_typemap(gsd->typemap);
         free_gsd_bonds(gsd);
 
         free_typemap(gsd->bondmap);
@@ -366,10 +338,8 @@ static int read_typemap(gsd_trajectory_t *gsd, molfile_atom_t *atoms)
             }
 
         // remalloc the type mapping and copy from the gsd data with null termination
-        free_gsd_typemap(gsd);
-        gsd->numtypes = entry->N;
-        gsd->typemap = (char**)malloc(gsd->numtypes * sizeof(char*));
-        for (int i=0; i < gsd->numtypes; ++i)
+        reallocate_typemap(gsd->typemap, entry->N);
+        for (int i=0; i < entry->N; ++i)
             {
             const char *name = data + i*entry->M;
             // get size of the name
@@ -379,9 +349,9 @@ static int read_typemap(gsd_trajectory_t *gsd, molfile_atom_t *atoms)
                 l = max_nametype;
                 }
 
-            gsd->typemap[i] = (char*)malloc((l+1) * sizeof(char));
-            strncpy(gsd->typemap[i], name, l);
-            gsd->typemap[i][l] = '\0'; // force null termination
+            (gsd->typemap->type)[i] = (char*)malloc((l+1) * sizeof(char));
+            strncpy((gsd->typemap->type)[i], name, l);
+            (gsd->typemap->type)[i][l] = '\0'; // force null termination
             }
         if (data)
             {
@@ -392,79 +362,9 @@ static int read_typemap(gsd_trajectory_t *gsd, molfile_atom_t *atoms)
     else
         {
         // initialize default types from the HOOMD spec
-        free_gsd_typemap(gsd);
-        gsd->numtypes = 1;
-        gsd->typemap = (char**)malloc(sizeof(char*));
-        gsd->typemap[0] = (char*)malloc(2*sizeof(char));
-        strncpy(gsd->typemap[0],"A\0",2);
-        }
-
-    return MOLFILE_SUCCESS;
-    }
-
-//! Read the type map from the GSD file into the trajectory
-/*!
- * \param gsd GSD trajectory
- * \param name Name of the bond map chunk
- * \param numbondtypes Number of bond types (output)
- * \param bondmap Bond name map (output)
- *
- * \returns MOLFILE_SUCCESS or MOLFILE_ERROR on success / failure.
- *
- * Reads in the bond type map from frame 0 of the GSD file as NULL terminated strings,
- * and saves it into \a bondmap. This method may be used to read bond, angle, and dihedral names.
- */
-static int read_bondmap(gsd_handle_t *handle,
-                        const char *name,
-                        typemap_t *bondmap)
-    {
-    const struct gsd_index_entry* entry = gsd_find_chunk(handle, 0, name);
-    if (entry != NULL) // types are present
-        {
-        size_t actual_size = entry->N * entry->M * gsd_sizeof_type((enum gsd_type)entry->type);
-        char* data = (char*)malloc(actual_size);
-        int retval = gsd_read_chunk(handle, data, entry);
-        if (retval == -1)
-            {
-            if (data)
-                {
-                free(data);
-                data = NULL;
-                }
-            vmdcon_printf(VMDCON_ERROR, "gsd) Type mapping '%s' : %s\n", name, strerror(errno));
-            return MOLFILE_ERROR;
-            }
-        else if (retval != 0)
-            {
-            if (data)
-                {
-                free(data);
-                data = NULL;
-                }
-            vmdcon_printf(VMDCON_ERROR, "gsd) Error reading type mapping '%s'\n", name);
-            return MOLFILE_ERROR;
-            }
-
-        reallocate_typemap(bondmap, entry->N);
-        if (bondmap && bondmap->type)
-            {
-            for (int i=0; i < entry->N; ++i)
-                {
-                const char *name = data + i*entry->M;
-                // get size of the name
-                size_t l = strnlen(name, entry->M);
-
-                // resizing guarantees that all member chars are nulled, so can just malloc
-                (bondmap->type)[i] = (char*)malloc((l+1) * sizeof(char));
-                strncpy((bondmap->type)[i], name, l);
-                (bondmap->type)[i][l] = '\0'; // force null termination
-                }
-            }
-        if (data)
-            {
-            free(data);
-            data = NULL;
-            }
+        reallocate_typemap(gsd->typemap, 1);
+        gsd->typemap->type[0] = (char*)malloc(2*sizeof(char));
+        strncpy(gsd->typemap->type[0],"A\0",2);
         }
 
     return MOLFILE_SUCCESS;
@@ -504,8 +404,8 @@ static int read_gsd_structure(void *mydata, int *optflags, molfile_atom_t *atoms
             for (int i=0; i < gsd->natoms; ++i, ++a)
                 {
                 unsigned int typeid_i = typeid[i];
-                strncpy(a->name, gsd->typemap[typeid_i], sizeof(atoms->name));
-                strncpy(a->type, gsd->typemap[typeid_i], sizeof(atoms->type));
+                strncpy(a->name, gsd->typemap->type[typeid_i], sizeof(atoms->name));
+                strncpy(a->type, gsd->typemap->type[typeid_i], sizeof(atoms->type));
                 }
             }
         else
@@ -593,6 +493,73 @@ static int read_gsd_structure(void *mydata, int *optflags, molfile_atom_t *atoms
         {
         free(props);
         props = NULL;
+        }
+
+    return MOLFILE_SUCCESS;
+    }
+
+//! Read the type map from the GSD file into the trajectory
+/*!
+ * \param handle GSD file handle
+ * \param name Name of the bond map chunk
+ * \param bondmap Bond name map (output)
+ *
+ * \returns MOLFILE_SUCCESS or MOLFILE_ERROR on success / failure.
+ *
+ * Reads in the bond type map from frame 0 of the GSD file as NULL terminated strings,
+ * and saves it into \a bondmap. This method may be used to read bond, angle, and dihedral names.
+ */
+static int read_bondmap(gsd_handle_t *handle,
+                        const char *name,
+                        typemap_t *bondmap)
+    {
+    const struct gsd_index_entry* entry = gsd_find_chunk(handle, 0, name);
+    if (entry != NULL) // types are present
+        {
+        size_t actual_size = entry->N * entry->M * gsd_sizeof_type((enum gsd_type)entry->type);
+        char* data = (char*)malloc(actual_size);
+        int retval = gsd_read_chunk(handle, data, entry);
+        if (retval == -1)
+            {
+            if (data)
+                {
+                free(data);
+                data = NULL;
+                }
+            vmdcon_printf(VMDCON_ERROR, "gsd) Type mapping '%s' : %s\n", name, strerror(errno));
+            return MOLFILE_ERROR;
+            }
+        else if (retval != 0)
+            {
+            if (data)
+                {
+                free(data);
+                data = NULL;
+                }
+            vmdcon_printf(VMDCON_ERROR, "gsd) Error reading type mapping '%s'\n", name);
+            return MOLFILE_ERROR;
+            }
+
+        reallocate_typemap(bondmap, entry->N);
+        if (bondmap && bondmap->type)
+            {
+            for (int i=0; i < entry->N; ++i)
+                {
+                const char *name = data + i*entry->M;
+                // get size of the name
+                size_t l = strnlen(name, entry->M);
+
+                // resizing guarantees that all member chars are nulled, so can just malloc
+                bondmap->type[i] = (char*)malloc((l+1) * sizeof(char));
+                strncpy(bondmap->type[i], name, l);
+                bondmap->type[i][l] = '\0'; // force null termination
+                }
+            }
+        if (data)
+            {
+            free(data);
+            data = NULL;
+            }
         }
 
     return MOLFILE_SUCCESS;
