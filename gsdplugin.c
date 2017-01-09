@@ -86,6 +86,7 @@ typedef struct
     typemap_t *bondmap;         //!< Bond map
     } gsd_trajectory_t;
 
+//! Constructor for GSD trajectory
 static gsd_trajectory_t* allocate_gsd_trajectory()
     {
     gsd_trajectory_t *gsd = (gsd_trajectory_t *)calloc(1,sizeof(gsd_trajectory_t));
@@ -738,29 +739,56 @@ VMDPLUGIN_API int VMDPLUGIN_fini()
 
 /* Unit testing */
 #ifdef TEST_PLUGIN
-int main(int argc, char *argv[])
+// MinUnit testing macros -- http://www.jera.com/techinfo/jtns/jtn002.html
+#define mu_assert(test) do { if(!(test)) { ++nfail; fprintf(stderr, "Assertion failed: " #test "\n" );} else { ++npass; } } while(0)
+#define mu_run_test(test) do { test_setup(); test(); test_teardown(); } while (0)
+
+// global testing variables (*sigh* it would be easier to use a c++ unit test framework, but this will do for quick and dirty)
+int natoms = 0;
+void *v = NULL;
+int npass = 0;
+int nfail = 0;
+
+static void test_setup()
     {
     VMDPLUGIN_init();
+    v = plugin.open_file_read("/Users/mphoward/Desktop/test.gsd", "gsd", &natoms);
+    }
 
-    int natoms = 0;
-    void *v = open_gsd_read("/Users/mphoward/Desktop/test.gsd", "gsd", &natoms);
-    if (!v)
-        {
-        fprintf(stderr, "open_gsd_read failed for file %s\n", *argv);
-        return 1;
-        }
-    fprintf(stderr, "open_gsd_read succeeded for file %s\n", *argv);
-    fprintf(stderr, "number of atoms: %d\n", natoms);
+static void test_teardown()
+    {
+    plugin.close_file_read(v);
 
+    natoms = 0;
+    v = NULL;
+
+    VMDPLUGIN_fini();
+    }
+
+static void test_open_gsd_read()
+    {
+    mu_assert(v != NULL);
+    mu_assert(natoms == 2);
+    }
+
+static void test_read_gsd_structure()
+    {
     molfile_atom_t *atoms=(molfile_atom_t *)malloc(natoms*sizeof(molfile_atom_t));
     int optflags;
-    if (read_gsd_structure(v, &optflags, atoms) != MOLFILE_SUCCESS)
-        {
-        SAFE_FREE(atoms);
-        close_gsd_read(v);
-        return 1;
-        }
+    int retval = read_gsd_structure(v, &optflags, atoms);
+    mu_assert(retval == MOLFILE_SUCCESS);
+    SAFE_FREE(atoms);
+    }
 
+int main(int argc, char *argv[])
+    {
+    // initialize the plugin
+    mu_run_test(test_open_gsd_read);
+    mu_run_test(test_read_gsd_structure);
+
+    fprintf(stderr, "%d assertions passed, %d assertions failed\n", npass, nfail);
+
+    /*
     int nbonds = 0;
     int nbondtypes = 0;
     int *from = NULL;
@@ -769,13 +797,8 @@ int main(int argc, char *argv[])
     int *bondtype = NULL;
     char **bondnames = NULL;
     read_gsd_bonds(v, &nbonds, &from, &to, &order, &bondtype, &nbondtypes, &bondnames);
-    fprintf(stderr,"BONDS: nbonds = %d\n", nbonds);
+    fprintf(stderr,"BONDS: nbonds = %d\n", nbonds);*/
 
-    close_gsd_read(v);
-
-    SAFE_FREE(atoms);
-
-    VMDPLUGIN_fini();
     return 0;
     }
 
