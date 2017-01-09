@@ -108,30 +108,6 @@ static gsd_trajectory_t* allocate_gsd_trajectory()
     return gsd;
     }
 
-//! Free the bonds from the gsd trajectory
-/*!
- * \param gsd GSD trajectory object
- *
- * \post All memory for the bonds is freed, the number of bonds is zeroed, and
- *       all pointers are set to NULL.
- *
- * This function is safe to call even if the bonds are not allocated.
- */
-static void free_gsd_bonds(gsd_trajectory_t *gsd)
-    {
-    gsd->nbonds = 0;
-    if (gsd->bond_from)
-        {
-        free(gsd->bond_from);
-        gsd->bond_from = NULL;
-        }
-    if (gsd->bond_to)
-        {
-        free(gsd->bond_to);
-        gsd->bond_to = NULL;
-        }
-    }
-
 //! Destructor for GSD trajectory
 /*!
  * \param gsd GSD trajectory object
@@ -155,9 +131,20 @@ static void free_gsd_trajectory(gsd_trajectory_t *gsd)
         gsd->handle = NULL;
 
         free_typemap(gsd->typemap);
-        free_gsd_bonds(gsd);
 
+        gsd->nbonds = 0;
+        if (gsd->bond_from)
+            {
+            free(gsd->bond_from);
+            gsd->bond_from = NULL;
+            }
+        if (gsd->bond_to)
+            {
+            free(gsd->bond_to);
+            gsd->bond_to = NULL;
+            }
         free_typemap(gsd->bondmap);
+
         free(gsd);
         }
     gsd = NULL;
@@ -767,7 +754,6 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
 
 static void close_gsd_read(void *mydata)
     {
-    fprintf(stderr, "close\n");
     free_gsd_trajectory(mydata);
     }
 
