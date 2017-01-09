@@ -20,3 +20,7 @@ include_directories(${VMD_PLUGIN_INCLUDE_PATH})
 add_library(gsdplugin SHARED gsdplugin.c gsd.c)
 set_target_properties(gsdplugin PROPERTIES PREFIX "" SUFFIX ".so" C_STANDARD 99)
 install(TARGETS gsdplugin DESTINATION ${VMD_PLUGIN_MOLFILE_PATH})
+
+# testing target (should use a testing framework instead, but this works for now)
+add_executable(test_gsd gsdplugin.c gsd.c)
+target_compile_definitions(test_gsd PRIVATE TEST_PLUGIN)

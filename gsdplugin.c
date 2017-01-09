@@ -12,10 +12,68 @@
 //! GSD handle object
 typedef struct gsd_handle gsd_handle_t;
 
+//! String type map
+typedef struct
+    {
+    int ntypes;     //!< Number of types mapped
+    char **type;    //!< Names of types
+    } typemap_t;
+
+//! Reallocate a type map and null entry strings
+static void reallocate_typemap(typemap_t* typemap, int ntypes)
+    {
+    if (!typemap) return;
+
+    // free any existing memory
+    if(typemap->type)
+        {
+        for (int i=0; i < typemap->ntypes; ++i)
+            {
+            if ((typemap->type)[i]) free((typemap->type)[i]);
+            (typemap->type)[i] = NULL;
+            }
+        free(typemap->type);
+        typemap->type = NULL;
+        }
+
+    typemap->ntypes = ntypes;
+    if (ntypes > 0)
+        {
+        typemap->type = (char**)malloc(ntypes * sizeof(char*));
+        for (int i=0; i < typemap->ntypes; ++i)
+            {
+            (typemap->type)[i] = NULL;
+            }
+        }
+    }
+
+//! Type map constructor
+static typemap_t* allocate_typemap(int ntypes)
+    {
+    typemap_t *typemap = (typemap_t *)malloc(sizeof(typemap_t));
+
+    typemap->ntypes = 0;
+    typemap->type = NULL;
+    reallocate_typemap(typemap, ntypes);
+
+    return typemap;
+    }
+
+//! Type map destructor
+static void free_typemap(typemap_t* typemap)
+    {
+    if (typemap)
+        {
+        // free any existing memory by calling a reallocation
+        reallocate_typemap(typemap, 0);
+        free(typemap);
+        }
+    }
+
 //! GSD trajectory
 typedef struct
     {
-    gsd_handle_t* handle;  //!< GSD file handle
+    gsd_handle_t* handle;       //!< GSD file handle
     int frame;                  //!< Current frame index
     int numframes;              //!< Number of frames in gsd file
     int natoms;                 //!< Number of atoms in first frame
@@ -25,8 +83,7 @@ typedef struct
     int nbonds;                 //!< Number of bonds
     int *bond_from;             //!< First particle in bond (1-indexed)
     int *bond_to;               //!< Second particle in bond (2-indexed)
-    int numbondtypes;           //!< Number of bond types
-    char **bondmap;             //!< Names of bonds
+    typemap_t *bondmap;         //!< Bond map
     } gsd_trajectory_t;
 
 static gsd_trajectory_t* allocate_gsd_trajectory()
@@ -35,7 +92,7 @@ static gsd_trajectory_t* allocate_gsd_trajectory()
 
     if (gsd)
         {
-        gsd->handle = NULL;
+        gsd->handle = (gsd_handle_t*)malloc(sizeof(gsd_handle_t));
 
         gsd->frame = 0;
         gsd->numframes = 0;
@@ -47,8 +104,7 @@ static gsd_trajectory_t* allocate_gsd_trajectory()
         gsd->nbonds = 0;
         gsd->bond_from = NULL;
         gsd->bond_to = NULL;
-        gsd->numbondtypes = 0;
-        gsd->bondmap = NULL;
+        gsd->bondmap = allocate_typemap(0);
         }
 
     return gsd;
@@ -65,16 +121,19 @@ static gsd_trajectory_t* allocate_gsd_trajectory()
  */
 static void free_gsd_typemap(gsd_trajectory_t *gsd)
     {
-    // free the typemap memory if it has been allocated
-    for (int i=0; i < gsd->numtypes; ++i)
+    if (gsd->typemap)
         {
-        if (gsd->typemap[i]) free(gsd->typemap[i]);
-        gsd->typemap[i] = NULL;
-        }
-    gsd->numtypes = 0;
+        // free the typemap memory if it has been allocated
+        for (int i=0; i < gsd->numtypes; ++i)
+            {
+            if (gsd->typemap[i]) free(gsd->typemap[i]);
+            gsd->typemap[i] = NULL;
+            }
+        gsd->numtypes = 0;
 
-    if (gsd->typemap) free(gsd->typemap);
-    gsd->typemap = NULL;
+        free(gsd->typemap);
+        gsd->typemap = NULL;
+        }
     }
 
 //! Free the bonds from the gsd trajectory
@@ -98,25 +157,6 @@ static void free_gsd_bonds(gsd_trajectory_t *gsd)
         {
         free(gsd->bond_to);
         gsd->bond_to = NULL;
-        }
-    }
-
-//! Free the bond name map from the gsd trajectory
-/*!
- * \param gsd GSD trajectory object
- *
- * \post All memory for the bond map is freed, the number of bond types is zeroed, and
- *       all pointers are set to NULL.
- *
- * This function is safe to call even if the bond map is not allocated.
- */
-static void free_gsd_bondmap(gsd_trajectory_t *gsd)
-    {
-    gsd->numbondtypes = 0;
-    if (gsd->bondmap)
-        {
-        free(gsd->bondmap);
-        gsd->bondmap = NULL;
         }
     }
 
@@ -144,7 +184,8 @@ static void free_gsd_trajectory(gsd_trajectory_t *gsd)
 
         free_gsd_typemap(gsd);
         free_gsd_bonds(gsd);
-        free_gsd_bondmap(gsd);
+
+        free_typemap(gsd->bondmap);
         free(gsd);
         }
     gsd = NULL;
@@ -223,7 +264,6 @@ static void *open_gsd_read(const char *filename, const char *filetype, int *nato
     gsd_trajectory_t *gsd = allocate_gsd_trajectory();
     if (!gsd) return NULL;
 
-    gsd->handle = (gsd_handle_t*)malloc(sizeof(gsd_handle_t));
     int retval = gsd_open(gsd->handle, filename, GSD_OPEN_READONLY);
     if (retval == -1)
         {
@@ -278,7 +318,7 @@ static void *open_gsd_read(const char *filename, const char *filetype, int *nato
 //! Read the type map from the GSD file into the trajectory
 /*!
  * \param gsd GSD trajectory
- * \param atoms 
+ * \param atoms
  *
  * Reads in the type map from the GSD file as NULL terminated strings, respecting
  * the maximum character length that can be accommodated by VMD. If no type map
@@ -296,11 +336,21 @@ static int read_typemap(gsd_trajectory_t *gsd, molfile_atom_t *atoms)
         int retval = gsd_read_chunk(gsd->handle, data, entry);
         if (retval == -1)
             {
+            if (data)
+                {
+                free(data);
+                data = NULL;
+                }
             vmdcon_printf(VMDCON_ERROR, "gsd) Type mapping 'particles/types' : %s\n", strerror(errno));
             return MOLFILE_ERROR;
             }
         else if (retval != 0)
             {
+            if (data)
+                {
+                free(data);
+                data = NULL;
+                }
             vmdcon_printf(VMDCON_ERROR, "gsd) Error reading type mapping 'particles/types'\n");
             return MOLFILE_ERROR;
             }
@@ -333,10 +383,16 @@ static int read_typemap(gsd_trajectory_t *gsd, molfile_atom_t *atoms)
             strncpy(gsd->typemap[i], name, l);
             gsd->typemap[i][l] = '\0'; // force null termination
             }
+        if (data)
+            {
+            free(data);
+            data = NULL;
+            }
         }
     else
         {
         // initialize default types from the HOOMD spec
+        free_gsd_typemap(gsd);
         gsd->numtypes = 1;
         gsd->typemap = (char**)malloc(sizeof(char*));
         gsd->typemap[0] = (char*)malloc(2*sizeof(char));
@@ -358,36 +414,56 @@ static int read_typemap(gsd_trajectory_t *gsd, molfile_atom_t *atoms)
  * Reads in the bond type map from frame 0 of the GSD file as NULL terminated strings,
  * and saves it into \a bondmap. This method may be used to read bond, angle, and dihedral names.
  */
-static int read_bondmap(gsd_trajectory_t *gsd, const char *name, int *numbondtypes, char ***bondmap)
+static int read_bondmap(gsd_handle_t *handle,
+                        const char *name,
+                        typemap_t *bondmap)
     {
-    const struct gsd_index_entry* entry = gsd_find_chunk(gsd->handle, 0, name);
+    const struct gsd_index_entry* entry = gsd_find_chunk(handle, 0, name);
     if (entry != NULL) // types are present
         {
         size_t actual_size = entry->N * entry->M * gsd_sizeof_type((enum gsd_type)entry->type);
         char* data = (char*)malloc(actual_size);
-        int retval = gsd_read_chunk(gsd->handle, data, entry);
+        int retval = gsd_read_chunk(handle, data, entry);
         if (retval == -1)
             {
+            if (data)
+                {
+                free(data);
+                data = NULL;
+                }
             vmdcon_printf(VMDCON_ERROR, "gsd) Type mapping '%s' : %s\n", name, strerror(errno));
             return MOLFILE_ERROR;
             }
         else if (retval != 0)
             {
+            if (data)
+                {
+                free(data);
+                data = NULL;
+                }
             vmdcon_printf(VMDCON_ERROR, "gsd) Error reading type mapping '%s'\n", name);
             return MOLFILE_ERROR;
             }
 
-        *numbondtypes = entry->N;
-        *bondmap = (char**)malloc(entry->N * sizeof(char*));
-        for (int i=0; i < entry->N; ++i)
+        reallocate_typemap(bondmap, entry->N);
+        if (bondmap && bondmap->type)
             {
-            const char *name = data + i*entry->M;
-            // get size of the name
-            size_t l = strnlen(name, entry->M);
+            for (int i=0; i < entry->N; ++i)
+                {
+                const char *name = data + i*entry->M;
+                // get size of the name
+                size_t l = strnlen(name, entry->M);
 
-            (*bondmap)[i] = (char*)malloc((l+1) * sizeof(char));
-            strncpy((*bondmap)[i], name, l);
-            (*bondmap)[i][l] = '\0'; // force null termination
+                // resizing guarantees that all member chars are nulled, so can just malloc
+                (bondmap->type)[i] = (char*)malloc((l+1) * sizeof(char));
+                strncpy((bondmap->type)[i], name, l);
+                (bondmap->type)[i][l] = '\0'; // force null termination
+                }
+            }
+        if (data)
+            {
+            free(data);
+            data = NULL;
             }
         }
 
@@ -558,9 +634,8 @@ static int read_gsd_bonds(void *mydata,
         }
 
     // acquire the bondname map
-    if (read_bondmap(gsd, "bonds/types", &gsd->numbondtypes, &gsd->bondmap) != MOLFILE_SUCCESS)
+    if (read_bondmap(gsd->handle, "bonds/types", gsd->bondmap) != MOLFILE_SUCCESS)
         {
-        free_gsd_bondmap(gsd);
         return MOLFILE_ERROR;
         }
 
@@ -591,8 +666,8 @@ static int read_gsd_bonds(void *mydata,
     *nbonds = gsd->nbonds;
     *from = gsd->bond_from;
     *to = gsd->bond_to;
-    *nbondtypes = gsd->numbondtypes;
-    *bondtypename = gsd->bondmap;
+    *nbondtypes = gsd->bondmap->ntypes;
+    *bondtypename = gsd->bondmap->type;
 
     return MOLFILE_SUCCESS;
     }
@@ -676,7 +751,7 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
                 const double yz = (double)box[5];
                 const double norm1 = sqrt(1.0 + xy*xy);
                 const double norm2 = sqrt(1.0 + xz*xz + yz*yz);
-            
+
                 const double cos_gamma= xy / norm1;
                 const double cos_beta = xz / norm2;
                 const double cos_alpha = (xy*xz + yz)/(norm1 * norm2);
@@ -708,7 +783,7 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
                 {
                 retval = read_chunk(gsd->handle, ts->velocities, 0, "particles/velocity", 3*gsd->natoms*sizeof(float), gsd->natoms);
                 }
-            
+
             if (retval != 0)
                 {
                 vmdcon_printf(VMDCON_ERROR, "gsd) Error reading particle velocities from frame %d, aborting.\n", gsd->frame);
@@ -725,6 +800,7 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
 
 static void close_gsd_read(void *mydata)
     {
+    fprintf(stderr, "close\n");
     free_gsd_trajectory(mydata);
     }
 
@@ -762,3 +838,52 @@ VMDPLUGIN_API int VMDPLUGIN_fini()
     {
     return VMDPLUGIN_SUCCESS;
     }
+
+/* Unit testing */
+#ifdef TEST_PLUGIN
+int main(int argc, char *argv[])
+    {
+    VMDPLUGIN_init();
+
+    int natoms = 0;
+    void *v = open_gsd_read("/Users/mphoward/Desktop/test.gsd", "gsd", &natoms);
+    if (!v)
+        {
+        fprintf(stderr, "open_gsd_read failed for file %s\n", *argv);
+        return 1;
+        }
+    fprintf(stderr, "open_gsd_read succeeded for file %s\n", *argv);
+    fprintf(stderr, "number of atoms: %d\n", natoms);
+
+    molfile_atom_t *atoms=(molfile_atom_t *)malloc(natoms*sizeof(molfile_atom_t));
+    int optflags;
+    if (read_gsd_structure(v, &optflags, atoms) != MOLFILE_SUCCESS)
+        {
+        if (atoms)
+            {
+            free(atoms);
+            atoms = NULL;
+            }
+        close_gsd_read(v);
+        return 1;
+        }
+
+    int nbonds = 0;
+    int nbondtypes = 0;
+    int *from = NULL;
+    int *to = NULL;
+    float *order = NULL;
+    int *bondtype = NULL;
+    char **bondnames = NULL;
+    read_gsd_bonds(v, &nbonds, &from, &to, &order, &bondtype, &nbondtypes, &bondnames);
+    fprintf(stderr,"BONDS: nbonds = %d\n", nbonds);
+
+    close_gsd_read(v);
+
+    free(atoms);
+
+    VMDPLUGIN_fini();
+    return 0;
+    }
+
+#endif
