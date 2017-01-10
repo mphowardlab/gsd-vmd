@@ -3,19 +3,23 @@
 #include "vmdconio.h"
 
 #include <errno.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-//! Macro to safely free and NULL a pointer
+//! Macro to safely free and NULL a pointer \a p
 #define SAFE_FREE(p) do{ if(p){ free(p); p = NULL; } } while(0)
 
 //! GSD handle object
 typedef struct gsd_handle gsd_handle_t;
 
 //! String type map
+/*!
+ * Maps an index to a string name
+ */
 typedef struct
     {
     int ntypes;     //!< Number of types mapped
@@ -23,6 +27,16 @@ typedef struct
     } typemap_t;
 
 //! Reallocate a type map and null entry strings
+/*!
+ * \param typemap String type map to reallocate
+ * \param ntypes Number of types to allocate for
+ *
+ * When \a ntypes is 0, all memory is freed and pointers are nulled. When \a ntypes
+ * is greater than 0, memory for the map is allocated and each entry initialized
+ * to a NULL pointer.
+ *
+ * \warning Any values stored in the map are lost on reallocation.
+ */
 static void reallocate_typemap(typemap_t* typemap, int ntypes)
     {
     if (!typemap) return;
@@ -49,6 +63,10 @@ static void reallocate_typemap(typemap_t* typemap, int ntypes)
     }
 
 //! Type map constructor
+/*!
+ * \param ntypes Number of types to hold in the map
+ * \returns An initialized type map with all entries set to NULL pointers
+ */
 static typemap_t* allocate_typemap(int ntypes)
     {
     typemap_t *typemap = (typemap_t *)malloc(sizeof(typemap_t));
@@ -61,6 +79,13 @@ static typemap_t* allocate_typemap(int ntypes)
     }
 
 //! Type map destructor
+/*!
+ * \param typemap String type map to free
+ *
+ * \post All memory is freed, and \a typemap is set to NULL.
+ *
+ * This function is safe to call even if \a typemap is not allocated.
+ */
 static void free_typemap(typemap_t* typemap)
     {
     if (typemap)
@@ -87,6 +112,9 @@ typedef struct
     } gsd_trajectory_t;
 
 //! Constructor for GSD trajectory
+/*!
+ * \returns An allocated and default initialized GSD trajectory
+ */
 static gsd_trajectory_t* allocate_gsd_trajectory()
     {
     gsd_trajectory_t *gsd = (gsd_trajectory_t *)calloc(1,sizeof(gsd_trajectory_t));
@@ -157,7 +185,10 @@ static void free_gsd_trajectory(gsd_trajectory_t *gsd)
  * \param expected_size Bytes allocated to \a data hold the chunk
  * \param expected_N Expected number of particles
  *
- * If \a expected_N is nonzero, then the chunk size is validated.
+ * \returns MOLFILE_SUCCESS on success or MOLFILE_ERROR on failure
+ *
+ * If \a expected_N is nonzero, then the chunk size is validated to ensure it
+ * contains \a expected_N entries.
  */
 static int read_chunk(gsd_handle_t *handle,
                       void *data,
@@ -214,7 +245,7 @@ static int read_chunk(gsd_handle_t *handle,
  * Although GSD supports changing number of particles, VMD does not, so \a natoms
  * will be set from the value of N stored in frame 0.
  */
-static void *open_gsd_read(const char *filename, const char *filetype, int *natoms)
+static void* open_gsd_read(const char *filename, const char *filetype, int *natoms)
     {
     if (!filename) return NULL;
 
@@ -254,13 +285,31 @@ static void *open_gsd_read(const char *filename, const char *filetype, int *nato
         }
 
     // validate schema
+    if (strcmp(gsd->handle->header.schema, "hoomd") != 0)
+        {
+        vmdcon_printf(VMDCON_ERROR, "gsd) Invalid schema in '%s', expecting 'hoomd'\n", filename);
+        free_gsd_trajectory(gsd);
+        return NULL;
+        }
+    if (gsd->handle->header.schema_version >= gsd_make_version(2,0))
+        {
+        vmdcon_printf(VMDCON_ERROR, "gsd) Invalid schema version in '%s', expecting 1.x\n", filename);
+        free_gsd_trajectory(gsd);
+        return NULL;
+        }
 
     // validate that at least one frame is written (is this just given?)
     gsd->numframes = gsd_get_nframes(gsd->handle);
+    if (gsd->numframes == 0)
+        {
+        vmdcon_printf(VMDCON_ERROR, "gsd) GSD file '%s' does not contain any frames\n", filename);
+        free_gsd_trajectory(gsd);
+        return NULL;
+        }
 
     // read the number of particles
     *natoms = 0;
-    read_chunk(gsd->handle, natoms, 0, "particles/N", 4, 0);
+    read_chunk(gsd->handle, natoms, 0, "particles/N", sizeof(int), 0);
     if (*natoms == 0)
         {
         vmdcon_printf(VMDCON_ERROR, "gsd) No particles found in first frame of '%s'\n", filename);
@@ -275,15 +324,15 @@ static void *open_gsd_read(const char *filename, const char *filetype, int *nato
 //! Read the type map from the GSD file into the trajectory
 /*!
  * \param gsd GSD trajectory
- * \param atoms
+ * \param atoms VMD atom properties
  *
  * Reads in the type map from the GSD file as NULL terminated strings, respecting
  * the maximum character length that can be accommodated by VMD. If no type map
- * is set, the default of 0 -> A is assumed.
+ * is set, the default of 0 -> A is assumed, per the HOOMD-blue schema.
  *
- * \todo Remove pointer to \a atoms, and instead just accept max_nametype
+ * \returns MOLFILE_SUCCESS on success or MOLFILE_ERROR on failure
  */
-static int read_typemap(gsd_trajectory_t *gsd, molfile_atom_t *atoms)
+static int read_gsd_typemap(gsd_trajectory_t *gsd, molfile_atom_t *atoms)
     {
     const struct gsd_index_entry* entry = gsd_find_chunk(gsd->handle, 0, "particles/types");
     if (entry != NULL) // types are present
@@ -343,6 +392,144 @@ static int read_typemap(gsd_trajectory_t *gsd, molfile_atom_t *atoms)
     return MOLFILE_SUCCESS;
     }
 
+//! Read particle types from the GSD file
+/*!
+ * \param gsd GSD trajectory
+ * \param atoms VMD atom properties
+ *
+ * \returns MOLFILE_SUCCESS on success or MOLFILE_ERROR on failure
+ */
+static int read_gsd_types(gsd_trajectory_t *gsd, molfile_atom_t *atoms)
+    {
+    if (read_gsd_typemap(gsd, atoms) != MOLFILE_SUCCESS) return MOLFILE_ERROR;
+    uint32_t *typeid = (uint32_t*)calloc(gsd->natoms, sizeof(uint32_t));
+    int retval = read_chunk(gsd->handle, typeid, 0, "particles/typeid", gsd->natoms * sizeof(uint32_t), gsd->natoms);
+    if (retval == 0 || retval == -3)
+        {
+        molfile_atom_t *a = atoms;
+        for (int i=0; i < gsd->natoms; ++i, ++a)
+            {
+            unsigned int typeid_i = typeid[i];
+            strncpy(a->name, gsd->typemap->type[typeid_i], sizeof(atoms->name));
+            strncpy(a->type, gsd->typemap->type[typeid_i], sizeof(atoms->type));
+            }
+        }
+    else
+        {
+        SAFE_FREE(typeid);
+        return MOLFILE_ERROR;
+        }
+
+    SAFE_FREE(typeid);
+    return MOLFILE_SUCCESS;
+    }
+
+//! Read particle types from the GSD file
+/*!
+ * \param gsd GSD trajectory
+ * \param atoms VMD atom properties
+ * \param tmp Pointer to temporary memory allocated to hold the number of atoms
+ *            to read from \a gsd
+ *
+ * \returns MOLFILE_SUCCESS on success or MOLFILE_ERROR on failure
+ */
+static int read_gsd_mass(gsd_trajectory_t *gsd, molfile_atom_t *atoms, float *tmp)
+    {
+    if (!tmp) return MOLFILE_ERROR;
+
+    int retval = read_chunk(gsd->handle, tmp, 0, "particles/mass", gsd->natoms * sizeof(float), gsd->natoms);
+    if (retval == 0)
+        {
+        molfile_atom_t *a = atoms;
+        for (int i=0; i < gsd->natoms; ++i, ++a)
+            {
+            a->mass = tmp[i];
+            }
+        }
+    else if (retval != -3)
+        {
+        return MOLFILE_ERROR;
+        }
+
+    return MOLFILE_SUCCESS;
+    }
+
+//! Read particle charge from the GSD file
+/*!
+ * \param gsd GSD trajectory
+ * \param atoms VMD atom properties
+ * \param tmp Pointer to temporary memory allocated to hold the number of atoms
+ *            to read from \a gsd
+ *
+ * \returns MOLFILE_SUCCESS on success or MOLFILE_ERROR on failure
+ */
+static int read_gsd_charge(gsd_trajectory_t *gsd, molfile_atom_t *atoms, float *tmp)
+    {
+    if (!tmp) return MOLFILE_ERROR;
+
+    int retval = read_chunk(gsd->handle, tmp, 0, "particles/charge", gsd->natoms * sizeof(float), gsd->natoms);
+    if (retval == 0)
+        {
+        molfile_atom_t *a = atoms;
+        for (int i=0; i < gsd->natoms; ++i, ++a)
+            {
+            a->charge = tmp[i];
+            }
+        }
+    else if (retval != -3)
+        {
+        return MOLFILE_ERROR;
+        }
+
+    return MOLFILE_SUCCESS;
+    }
+
+//! Read particle radius from the GSD file
+/*!
+ * \param gsd GSD trajectory
+ * \param atoms VMD atom properties
+ * \param tmp Pointer to temporary memory allocated to hold the number of atoms
+ *            to read from \a gsd
+ *
+ * \returns MOLFILE_SUCCESS on success or MOLFILE_ERROR on failure
+ */
+static int read_gsd_radius(gsd_trajectory_t *gsd, molfile_atom_t *atoms, float *tmp)
+    {
+    if (!tmp) return MOLFILE_ERROR;
+
+    int retval = read_chunk(gsd->handle, tmp, 0, "particles/diameter", gsd->natoms * sizeof(float), gsd->natoms);
+    if (retval == 0)
+        {
+        molfile_atom_t *a = atoms;
+        for (int i=0; i < gsd->natoms; ++i, ++a)
+            {
+            a->radius = 0.5f * tmp[i];
+            }
+        }
+    else if (retval != -3)
+        {
+        return MOLFILE_ERROR;
+        }
+
+    return MOLFILE_SUCCESS;
+    }
+
+//! Read particle types from the GSD file
+/*!
+ * \param mydata GSD trajectory
+ * \param optflags VMD optional flags (output)
+ * \param atoms VMD atom properties (output)
+ *
+ * \returns MOLFILE_SUCCESS on success or MOLFILE_ERROR on failure
+ *
+ * Atom properties are first set to their default values, per the HOOMD schema,
+ * and then we attempt to read the data from frame 0.
+ *
+ * \sa read_gsd_types for how types are read
+ * \sa read_gsd_mass for how masses are read
+ * \sa read_gsd_charge for how charge is read
+ * \sa read_gsd_radius for how radius is read
+ */
 static int read_gsd_structure(void *mydata, int *optflags, molfile_atom_t *atoms)
     {
     gsd_trajectory_t *gsd = (gsd_trajectory_t*)mydata;
@@ -367,81 +554,27 @@ static int read_gsd_structure(void *mydata, int *optflags, molfile_atom_t *atoms
     *optflags = MOLFILE_MASS | MOLFILE_CHARGE | MOLFILE_RADIUS;
 
     // map the particle types
-        {
-        if (read_typemap(gsd, atoms) != MOLFILE_SUCCESS) return MOLFILE_ERROR;
-        uint32_t *typeid = (uint32_t*)calloc(gsd->natoms, sizeof(uint32_t));
-        int retval = read_chunk(gsd->handle, typeid, 0, "particles/typeid", gsd->natoms * sizeof(uint32_t), gsd->natoms);
-        if (retval == 0 || retval == -3)
-            {
-            molfile_atom_t *a = atoms;
-            for (int i=0; i < gsd->natoms; ++i, ++a)
-                {
-                unsigned int typeid_i = typeid[i];
-                strncpy(a->name, gsd->typemap->type[typeid_i], sizeof(atoms->name));
-                strncpy(a->type, gsd->typemap->type[typeid_i], sizeof(atoms->type));
-                }
-            }
-        else
-            {
-            SAFE_FREE(typeid);
-            return MOLFILE_ERROR;
-            }
-
-        SAFE_FREE(typeid);
-        }
+    if (read_gsd_types(gsd, atoms) != MOLFILE_SUCCESS) return MOLFILE_ERROR;
 
     // try to set optional properties
     float *props = (float*)calloc(gsd->natoms, sizeof(float));
     // mass
+    if (read_gsd_mass(gsd, atoms, props) != MOLFILE_SUCCESS)
         {
-        int retval = read_chunk(gsd->handle, props, 0, "particles/mass", gsd->natoms * sizeof(float), gsd->natoms);
-        if (retval == 0)
-            {
-            molfile_atom_t *a = atoms;
-            for (int i=0; i < gsd->natoms; ++i, ++a)
-                {
-                a->mass = props[i];
-                }
-            }
-        else if (retval != -3)
-            {
-            SAFE_FREE(props);
-            return MOLFILE_ERROR;
-            }
+        SAFE_FREE(props);
+        return MOLFILE_ERROR;
         }
     // charge
+    if (read_gsd_charge(gsd, atoms, props) != MOLFILE_SUCCESS)
         {
-        int retval = read_chunk(gsd->handle, props, 0, "particles/charge", gsd->natoms * sizeof(float), gsd->natoms);
-        if (retval == 0)
-            {
-            molfile_atom_t *a = atoms;
-            for (int i=0; i < gsd->natoms; ++i, ++a)
-                {
-                a->charge = props[i];
-                }
-            }
-        else if (retval != -3)
-            {
-            SAFE_FREE(props);
-            return MOLFILE_ERROR;
-            }
+        SAFE_FREE(props);
+        return MOLFILE_ERROR;
         }
     // radius
+    if (read_gsd_radius(gsd, atoms, props) != MOLFILE_SUCCESS)
         {
-        int retval = read_chunk(gsd->handle, props, 0, "particles/diameter", gsd->natoms * sizeof(float), gsd->natoms);
-        if (retval == 0)
-            {
-            molfile_atom_t *a = atoms;
-            for (int i=0; i < gsd->natoms; ++i, ++a)
-                {
-                a->radius = 0.5f * props[i];
-                }
-            }
-        else if (retval != -3)
-            {
-            SAFE_FREE(props);
-            return MOLFILE_ERROR;
-            }
+        SAFE_FREE(props);
+        return MOLFILE_ERROR;
         }
     SAFE_FREE(props);
 
@@ -503,6 +636,23 @@ static int read_bondmap(gsd_handle_t *handle,
     return MOLFILE_SUCCESS;
     }
 
+//! Read the bonds from the GSD file into the trajectory
+/*!
+ * \param mydata GSD trajectory
+ * \param nbonds Pointer to VMD number of bonds (output)
+ * \param from Pointer to list of first atom in bonds, 1-indexed (output)
+ * \param to Point to list of second atom in bonds, 1-indexed (output)
+ * \param bondorder Pointer to bond order values (output)
+ * \param bondtype Pointer to list of type of each bond (output)
+ * \param nbondtypes Pointer to VMD number of bond types (output)
+ * \param bondtypename Pointer to VMD list of bond type names (output)
+ *
+ * \returns MOLFILE_SUCCESS on success or MOLFILE_ERROR on failure
+ *
+ * HOOMD GSD does not supply any bond order data, so \a bondorder is set to
+ * a NULL pointer. Bonds are read in, and converted to VMD 1-indexing. Bond names
+ * are read in using a typemap_t, and are stored in the GSD trajectory \a mydata.
+ */
 static int read_gsd_bonds(void *mydata,
                           int *nbonds,
                           int **from,
@@ -515,8 +665,6 @@ static int read_gsd_bonds(void *mydata,
     // gsd does not supply a bond order
     *bondorder = NULL;
 
-    gsd_trajectory_t *gsd = (gsd_trajectory_t*)mydata;
-
     // default is to not supply any bonds
     *nbonds = 0;
     *from = NULL;
@@ -526,15 +674,16 @@ static int read_gsd_bonds(void *mydata,
     *bondtypename = NULL;
 
     // check number of bonds and exit early if no bonds are present, or on read error
+    gsd_trajectory_t *gsd = (gsd_trajectory_t*)mydata;
     int retval = read_chunk(gsd->handle, &gsd->nbonds,  0, "bonds/N", sizeof(int), 0);
     if (retval == -3 || gsd->nbonds == 0)
         {
-        // return without reading bonds if are not present
+        // return successfully if bonds are not present in the file
         return MOLFILE_SUCCESS;
         }
     else if (retval != 0)
         {
-        // this is a read error, quit early
+        // exit with read error
         return MOLFILE_ERROR;
         }
 
@@ -545,7 +694,7 @@ static int read_gsd_bonds(void *mydata,
         }
 
     // read in the bonds, and remap them with 1-indexing
-    uint32_t *bonds = (uint32_t*)calloc(2*gsd->nbonds, sizeof(uint32_t));
+    uint32_t *bonds = (uint32_t*)malloc(2*gsd->nbonds * sizeof(uint32_t));
     retval = read_chunk(gsd->handle, bonds, 0, "bonds/group", 2*gsd->nbonds*sizeof(uint32_t), gsd->nbonds);
     if (retval != 0)
         {
@@ -571,6 +720,21 @@ static int read_gsd_bonds(void *mydata,
     return MOLFILE_SUCCESS;
     }
 
+//! Reads metadata about the GSD trajectory
+/*!
+ * \param mydata GSD trajectory
+ * \param meta VMD trajectory metadata (output)
+ *
+ * The count of frames is set from the GSD trajectory. GSD almost always has
+ * velocities stored in frame 0 unless the system was initialized to all 0s,
+ * even if the user set them to "static" so that they aren't logged during the
+ * simulation. Unfortunately, there's no way to tell if the intention is to use
+ * the velocities from frame 0 (which may have been hacked to use as some coloring
+ * field) statically, or if the intention is to omit them, and so velocities are
+ * always read if we can find the chunk.
+ *
+ * \returns MOLFILE_SUCCESS
+ */
 static int read_gsd_timestep_metadata(void *mydata, molfile_timestep_metadata_t *meta)
     {
     gsd_trajectory_t *gsd = (gsd_trajectory_t *)mydata;
@@ -583,6 +747,34 @@ static int read_gsd_timestep_metadata(void *mydata, molfile_timestep_metadata_t 
     return MOLFILE_SUCCESS;
     }
 
+//! Reads a timestep (frame) from the GSD trajectory
+/*!
+ * \param mydata GSD trajectory
+ * \param natoms Number of atoms VMD expects in the frame
+ * \param ts VMD timestep data (output)
+ *
+ * \returns MOLFILE_SUCCESS on success, MOLFILE_EOF when the last frame is read,
+ *          and MOLFILE_ERROR on failure.
+ *
+ * If \a ts is a valid pointer and EOF has not been reached, the current frame is
+ * read out of the GSD file. Because VMD only supports constant number of particles
+ * (but GSD supports a changing number), the number of particles in the frame is
+ * checked to ensure that it agrees with the number found in the first frame. An
+ * error is reported if the number of particles changes.
+ *
+ * The timestep (integer) is reported as the "physical time" of the current frame.
+ * The simulation box is also reported for each frame, and is converted from
+ * HOOMD's triclinic tilt factors to the angles required by VMD. Particle positions
+ * are read for each frame (an error is raised if the positions are not present).
+ * The velocities are optionally (but in practice basically always) read from the
+ * file, and default to frame 0 if necessary.
+ *
+ * If \a ts is NULL, then the frame is simply skipped. In both cases, the frame
+ * counter is advanced in \a mydata.
+ *
+ * \note MOLFILE_EOF and MOLFILE_ERROR currently take the same value, so VMD
+ *       cannot distinguish the two in the return value.
+ */
 static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
     {
     gsd_trajectory_t *gsd = (gsd_trajectory_t*)mydata;
@@ -697,15 +889,26 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
     return MOLFILE_SUCCESS;
     }
 
+//! Closes the GSD file for reading
+/*!
+ * \param mydata GSD trajectory
+ *
+ * \post All data stored in GSD trajectory is freed.
+ *
+ * \sa free_gsd_trajectory
+ */
 static void close_gsd_read(void *mydata)
     {
     free_gsd_trajectory(mydata);
     }
 
 /* plugin registration */
+//! Plugin object
 static molfile_plugin_t plugin;
 
-VMDPLUGIN_API int VMDPLUGIN_init() {
+//! VMD plugin initialization
+VMDPLUGIN_API int VMDPLUGIN_init()
+    {
     memset(&plugin, 0, sizeof(molfile_plugin_t));
     plugin.abiversion = vmdplugin_ABIVERSION;
     plugin.type = MOLFILE_PLUGIN_TYPE;
@@ -726,12 +929,14 @@ VMDPLUGIN_API int VMDPLUGIN_init() {
     return VMDPLUGIN_SUCCESS;
     }
 
+//! VMD plugin registration
 VMDPLUGIN_API int VMDPLUGIN_register(void *v, vmdplugin_register_cb cb)
     {
     (*cb)(v, (vmdplugin_t *)&plugin);
     return VMDPLUGIN_SUCCESS;
     }
 
+//! VMD plugin finalization
 VMDPLUGIN_API int VMDPLUGIN_fini()
     {
     return VMDPLUGIN_SUCCESS;
@@ -749,12 +954,14 @@ void *v = NULL;
 int npass = 0;
 int nfail = 0;
 
+//! Setup method for unit tests
 static void test_setup()
     {
     VMDPLUGIN_init();
     v = plugin.open_file_read("/Users/mphoward/Desktop/test.gsd", "gsd", &natoms);
     }
 
+//! Teardown method for unit tests
 static void test_teardown()
     {
     plugin.close_file_read(v);
@@ -765,12 +972,14 @@ static void test_teardown()
     VMDPLUGIN_fini();
     }
 
+//! Test GSD file is successfully opened for reading
 static void test_open_gsd_read()
     {
     mu_assert(v != NULL);
     mu_assert(natoms == 2);
     }
 
+//! Test GSD structure is read correctly
 static void test_read_gsd_structure()
     {
     molfile_atom_t *atoms=(molfile_atom_t *)malloc(natoms*sizeof(molfile_atom_t));
@@ -780,6 +989,7 @@ static void test_read_gsd_structure()
     SAFE_FREE(atoms);
     }
 
+//! Run simple unit tests, exiting on first failure
 int main(int argc, char *argv[])
     {
     // initialize the plugin
