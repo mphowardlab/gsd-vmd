@@ -20,7 +20,7 @@ TEST_CASE("GSDPlugin")
     CHECK(std::string(plugin->prettyname) == "HOOMD-blue GSD File");
     CHECK(std::string(plugin->author) == "Michael P. Howard");
     CHECK(plugin->majorv == 0);
-    CHECK(plugin->minorv == 0);
+    CHECK(plugin->minorv == 1);
     CHECK(plugin->is_reentrant == VMDPLUGIN_THREADSAFE);
     CHECK(std::string(plugin->filename_extension) == "gsd");
 
