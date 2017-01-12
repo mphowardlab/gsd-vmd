@@ -1,3 +1,6 @@
+// Copyright (c) 2017, Michael P. Howard
+// This file is part of the gsd-vmd project, released under the Modified BSD License.
+
 /*!
  * \file test_dynamic_library.cc
  * \brief Test DynamicLibrary object used for testing plugin

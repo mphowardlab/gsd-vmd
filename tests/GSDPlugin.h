@@ -1,3 +1,6 @@
+// Copyright (c) 2017, Michael P. Howard
+// This file is part of the gsd-vmd project, released under the Modified BSD License.
+
 #ifndef GSDVMD_TESTS_GSD_PLUGIN_H_
 #define GSDVMD_TESTS_GSD_PLUGIN_H_
 

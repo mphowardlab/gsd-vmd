@@ -1,3 +1,11 @@
+// Copyright (c) 2017, Michael P. Howard
+// This file is part of the gsd-vmd project, released under the Modified BSD License.
+
+/*!
+ * \file gsdplugin.c
+ * \brief VMD molfile plugin to read HOOMD-blue GSD files
+ */
+
 #include "gsd.h"
 #include "molfile_plugin.h"
 #include "vmdconio.h"

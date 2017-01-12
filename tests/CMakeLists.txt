@@ -1,3 +1,6 @@
+# Copyright (c) 2017, Michael P. Howard
+# This file is part of the gsd-vmd project, released under the Modified BSD License.
+
 add_library(catch catch.cc)
 
 add_library(gsdplugin_loader DynamicLibrary.cc GSDPlugin.cc)

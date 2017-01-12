@@ -1,3 +1,6 @@
+// Copyright (c) 2017, Michael P. Howard
+// This file is part of the gsd-vmd project, released under the Modified BSD License.
+
 #include "catch.hpp"
 #include "GSDPlugin.h"
 #include "molfile_plugin.h"
