@@ -331,12 +331,60 @@ TEST_CASE("Read GSD")
         {
         molfile_timestep_metadata_t *meta = new molfile_timestep_metadata_t;
 
+        // no more REQUIRE until meta is freed
         int retval = plugin->read_timestep_metadata(v, meta);
-        REQUIRE(retval == MOLFILE_SUCCESS);
-
+        CHECK(retval == MOLFILE_SUCCESS);
         CHECK(meta->count == 1);
         CHECK(meta->has_velocities);
 
         delete meta;
         }
+
+    SECTION("timestep")
+        {
+        molfile_timestep_t *ts = new molfile_timestep_t;
+        ts->coords = new float[natoms*3];
+        ts->velocities = new float[natoms*3];
+
+        // no more REQUIRE until memory is freed
+        int retval = plugin->read_next_timestep(v, natoms, ts);
+        CHECK(retval == MOLFILE_SUCCESS);
+
+        // check timestep
+        CHECK(ts->physical_time == Approx(0.));
+
+        // check simulation box
+        CHECK(ts->A == Approx(20.0));
+        CHECK(ts->B == Approx(20.0));
+        CHECK(ts->C == Approx(20.0));
+        CHECK(ts->alpha == Approx(90.0));
+        CHECK(ts->beta == Approx(90.0));
+        CHECK(ts->gamma == Approx(90.0));
+
+        // check positions
+        // particle 1: x, y, z
+        CHECK(ts->coords[0] == Approx(1.));
+        CHECK(ts->coords[1] == Approx(2.));
+        CHECK(ts->coords[2] == Approx(3.));
+        // particle 2: x, y, z
+        CHECK(ts->coords[3] == Approx(4.));
+        CHECK(ts->coords[4] == Approx(5.));
+        CHECK(ts->coords[5] == Approx(6.));
+
+        // check velocities
+        // particle 1: x, y, z
+        CHECK(ts->velocities[0] == Approx(-1.));
+        CHECK(ts->velocities[1] == Approx(-2.));
+        CHECK(ts->velocities[2] == Approx(-3.));
+        // particle 2: x, y, z
+        CHECK(ts->velocities[3] == Approx(-4.));
+        CHECK(ts->velocities[4] == Approx(-5.));
+        CHECK(ts->velocities[5] == Approx(-6.));
+
+        delete[] ts->coords;
+        delete[] ts->velocities;
+        delete ts;
+        }
+
+    plugin->close_file_read(v);
     }

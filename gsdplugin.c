@@ -158,7 +158,6 @@ static void free_gsd_trajectory(gsd_trajectory_t *gsd)
             gsd_close(gsd->handle);
             SAFE_FREE(gsd->handle);
             }
-
         free_typemap(gsd->typemap);
 
         gsd->nbonds = 0;
@@ -899,7 +898,7 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
  */
 static void close_gsd_read(void *mydata)
     {
-    free_gsd_trajectory(mydata);
+    free_gsd_trajectory((gsd_trajectory_t*)mydata);
     }
 
 /* plugin registration */
