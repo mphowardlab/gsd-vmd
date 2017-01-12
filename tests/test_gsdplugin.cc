@@ -48,6 +48,7 @@ class DynamicLibrary
             if (!handle_)
                 {
                 std::cerr << dlerror() << std::endl;
+                handle_ = nullptr;
                 return false;
                 }
             else
@@ -277,6 +278,52 @@ TEST_CASE("Read GSD")
         CHECK( (optflags & MOLFILE_CHARGE) );
         CHECK( (optflags & MOLFILE_RADIUS) );
 
+        // mass, charge, radius of particle 2
+        CHECK(std::string(atoms[0].type) == "A");
+        CHECK(std::string(atoms[0].name) == "A");
+        CHECK(atoms[0].mass == Approx(6.));
+        CHECK(atoms[0].charge == Approx(-1.));
+        CHECK(atoms[0].radius == Approx(1.));
+        // resname, resid, segid, and chain should all be unset
+        CHECK(std::string(atoms[0].resname) == std::string());
+        CHECK(atoms[0].resid == 0);
+        CHECK(std::string(atoms[0].segid) == std::string());
+        CHECK(std::string(atoms[0].chain) == std::string());
+
+        // mass, charge, radius of particle 2
+        CHECK(std::string(atoms[1].type) == "B");
+        CHECK(std::string(atoms[1].name) == "B");
+        CHECK(atoms[1].mass == Approx(8.));
+        CHECK(atoms[1].charge == Approx(1.));
+        CHECK(atoms[1].radius == Approx(2.));
+        // resname, resid, segid, and chain should all be unset
+        CHECK(std::string(atoms[1].resname) == std::string());
+        CHECK(atoms[1].resid == 0);
+        CHECK(std::string(atoms[1].segid) == std::string());
+        CHECK(std::string(atoms[1].chain) == std::string());
+
         free(atoms);
+        }
+
+    SECTION("bonds")
+        {
+        int nbonds, nbondtypes;
+        int *from, *to, *bondtype;
+        float *bondorder;
+        char **bondtypename;
+        int retval = plugin->read_bonds(v, &nbonds, &from, &to, &bondorder, &bondtype, &nbondtypes, &bondtypename);
+        REQUIRE(retval == MOLFILE_SUCCESS);
+
+        // bondorder is not supplied
+        REQUIRE(bondorder == NULL);
+
+        // bond from 0->1, which is 1-indexed in vmd
+        REQUIRE(nbonds == 1);
+        CHECK(from[0] == 1);
+        CHECK(to[0] == 2);
+
+        // only one bond type
+        REQUIRE(nbondtypes == 1);
+        CHECK(std::string(bondtypename[0]) == "C");
         }
     }
