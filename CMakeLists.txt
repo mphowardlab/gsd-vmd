@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.1)
 
-project(gsd-vmd C)
+project(gsd-vmd)
 set(C_STANDARD_REQUIRED ON)
 
 # find the vmd directory, and configure installation prefix
@@ -21,6 +21,13 @@ add_library(gsdplugin SHARED gsdplugin.c gsd.c)
 set_target_properties(gsdplugin PROPERTIES PREFIX "" SUFFIX ".so" C_STANDARD 99)
 install(TARGETS gsdplugin DESTINATION ${VMD_PLUGIN_MOLFILE_PATH})
 
+# add the testing tree
+enable_testing()
+include(CTest)
+if (BUILD_TESTING)
+    add_subdirectory(tests)
+endif (BUILD_TESTING)
+
 # testing target (should use a testing framework instead, but this works for now)
-add_executable(test_gsd gsdplugin.c gsd.c)
-target_compile_definitions(test_gsd PRIVATE TEST_PLUGIN)
+#add_executable(test_gsd gsdplugin.c gsd.c)
+#target_compile_definitions(test_gsd PRIVATE TEST_PLUGIN)
