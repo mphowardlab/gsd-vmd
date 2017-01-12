@@ -27,7 +27,3 @@ include(CTest)
 if (BUILD_TESTING)
     add_subdirectory(tests)
 endif (BUILD_TESTING)
-
-# testing target (should use a testing framework instead, but this works for now)
-#add_executable(test_gsd gsdplugin.c gsd.c)
-#target_compile_definitions(test_gsd PRIVATE TEST_PLUGIN)
