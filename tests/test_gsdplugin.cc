@@ -267,7 +267,7 @@ TEST_CASE("Read GSD")
 
     SECTION("structure")
         {
-        molfile_atom_t *atoms=(molfile_atom_t *)malloc(natoms*sizeof(molfile_atom_t));
+        molfile_atom_t *atoms = new molfile_atom_t[natoms];
         REQUIRE(atoms);
 
         // cannot use any REQUIRE statements until atoms has been freed
@@ -302,7 +302,7 @@ TEST_CASE("Read GSD")
         CHECK(std::string(atoms[1].segid) == std::string());
         CHECK(std::string(atoms[1].chain) == std::string());
 
-        free(atoms);
+        delete[] atoms;
         }
 
     SECTION("bonds")
@@ -325,5 +325,18 @@ TEST_CASE("Read GSD")
         // only one bond type
         REQUIRE(nbondtypes == 1);
         CHECK(std::string(bondtypename[0]) == "C");
+        }
+
+    SECTION("metadata")
+        {
+        molfile_timestep_metadata_t *meta = new molfile_timestep_metadata_t;
+
+        int retval = plugin->read_timestep_metadata(v, meta);
+        REQUIRE(retval == MOLFILE_SUCCESS);
+
+        CHECK(meta->count == 1);
+        CHECK(meta->has_velocities);
+
+        delete meta;
         }
     }
