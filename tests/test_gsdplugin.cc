@@ -381,6 +381,11 @@ TEST_CASE("Read GSD")
         CHECK(ts->velocities[4] == Approx(-5.));
         CHECK(ts->velocities[5] == Approx(-6.));
 
+        // passing a null pointer should return success, but we've also reached EOF
+        // so it should just return as such
+        retval = plugin->read_next_timestep(v, natoms, NULL);
+        CHECK(retval == MOLFILE_EOF);
+
         delete[] ts->coords;
         delete[] ts->velocities;
         delete ts;
