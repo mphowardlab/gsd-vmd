@@ -204,8 +204,8 @@ static int read_chunk(gsd_handle_t *handle,
         }
     else if (expected_N != 0 && entry->N != expected_N)
         {
-        vmdcon_printf(VMDCON_ERROR, "gsd) Incorrect number of entries in chunk '%s' at frame %d.\n"
-                                    "     Expected %d and found %d\n", name, frame, expected_N, entry->N);
+        vmdcon_printf(VMDCON_ERROR, "gsdplugin) Incorrect number of entries in chunk '%s' at frame %d.\n"
+                                    "           Expected %d and found %d\n", name, frame, expected_N, entry->N);
         return -2;
         }
 
@@ -213,19 +213,19 @@ static int read_chunk(gsd_handle_t *handle,
     size_t actual_size = entry->N * entry->M * gsd_sizeof_type((enum gsd_type)entry->type);
     if (actual_size != expected_size)
         {
-        vmdcon_printf(VMDCON_ERROR, "gsd) Incorrect entry size in chunk '%s' at frame %d.\n"
-                                    "     Expected %d B and found %d B\n", name, frame, expected_size, actual_size);
+        vmdcon_printf(VMDCON_ERROR, "gsdplugin) Incorrect entry size in chunk '%s' at frame %d.\n"
+                                    "           Expected %d B and found %d B\n", name, frame, expected_size, actual_size);
         return -2;
         }
 
     int retval = gsd_read_chunk(handle, data, entry);
     if (retval == -1)
         {
-        vmdcon_printf(VMDCON_ERROR, "gsd) Chunk '%s' : %s\n", name, strerror(errno));
+        vmdcon_printf(VMDCON_ERROR, "gsdplugin) Chunk '%s' : %s\n", name, strerror(errno));
         }
     else if (retval != 0)
         {
-        vmdcon_printf(VMDCON_ERROR, "gsd) Error reading chunk '%s'\n", name);
+        vmdcon_printf(VMDCON_ERROR, "gsdplugin) Error reading chunk '%s'\n", name);
         }
 
     return retval;
@@ -254,27 +254,27 @@ static void* open_gsd_read(const char *filename, const char *filetype, int *nato
     int retval = gsd_open(gsd->handle, filename, GSD_OPEN_READONLY);
     if (retval == -1)
         {
-        vmdcon_printf(VMDCON_ERROR, "gsd) '%s': %s\n", filename, strerror(errno));
+        vmdcon_printf(VMDCON_ERROR, "gsdplugin) '%s': %s\n", filename, strerror(errno));
         }
     else if (retval == -2)
         {
-        vmdcon_printf(VMDCON_ERROR, "gsd) '%s' is not a valid GSD file\n", filename);
+        vmdcon_printf(VMDCON_ERROR, "gsdplugin) '%s' is not a valid GSD file\n", filename);
         }
     else if (retval == -3)
         {
-        vmdcon_printf(VMDCON_ERROR, "gsd) Invalid GSD file version in '%s'\n", filename);
+        vmdcon_printf(VMDCON_ERROR, "gsdplugin) Invalid GSD file version in '%s'\n", filename);
         }
     else if (retval == -4)
         {
-        vmdcon_printf(VMDCON_ERROR, "gsd) Corrupt GSD file '%s'\n", filename);
+        vmdcon_printf(VMDCON_ERROR, "gsdplugin) Corrupt GSD file '%s'\n", filename);
         }
     else if (retval == -5)
         {
-        vmdcon_printf(VMDCON_ERROR, "gsd) Unable to allocate memory opening '%s'\n", filename);
+        vmdcon_printf(VMDCON_ERROR, "gsdplugin) Unable to allocate memory opening '%s'\n", filename);
         }
     else if (retval != 0)
         {
-        vmdcon_printf(VMDCON_ERROR, "gsd) Error opening '%s'\n", filename);
+        vmdcon_printf(VMDCON_ERROR, "gsdplugin) Error opening '%s'\n", filename);
         }
     // safe free and return in all cases of error
     if (retval != 0)
@@ -286,13 +286,13 @@ static void* open_gsd_read(const char *filename, const char *filetype, int *nato
     // validate schema
     if (strcmp(gsd->handle->header.schema, "hoomd") != 0)
         {
-        vmdcon_printf(VMDCON_ERROR, "gsd) Invalid schema in '%s', expecting 'hoomd'\n", filename);
+        vmdcon_printf(VMDCON_ERROR, "gsdplugin) Invalid schema in '%s', expecting 'hoomd'\n", filename);
         free_gsd_trajectory(gsd);
         return NULL;
         }
     if (gsd->handle->header.schema_version >= gsd_make_version(2,0))
         {
-        vmdcon_printf(VMDCON_ERROR, "gsd) Invalid schema version in '%s', expecting 1.x\n", filename);
+        vmdcon_printf(VMDCON_ERROR, "gsdplugin) Invalid schema version in '%s', expecting 1.x\n", filename);
         free_gsd_trajectory(gsd);
         return NULL;
         }
@@ -301,7 +301,7 @@ static void* open_gsd_read(const char *filename, const char *filetype, int *nato
     gsd->numframes = gsd_get_nframes(gsd->handle);
     if (gsd->numframes == 0)
         {
-        vmdcon_printf(VMDCON_ERROR, "gsd) GSD file '%s' does not contain any frames\n", filename);
+        vmdcon_printf(VMDCON_ERROR, "gsdplugin) GSD file '%s' does not contain any frames\n", filename);
         free_gsd_trajectory(gsd);
         return NULL;
         }
@@ -311,7 +311,7 @@ static void* open_gsd_read(const char *filename, const char *filetype, int *nato
     read_chunk(gsd->handle, natoms, 0, "particles/N", sizeof(int), 0);
     if (*natoms == 0)
         {
-        vmdcon_printf(VMDCON_ERROR, "gsd) No particles found in first frame of '%s'\n", filename);
+        vmdcon_printf(VMDCON_ERROR, "gsdplugin) No particles found in first frame of '%s'\n", filename);
         free_gsd_trajectory(gsd);
         return NULL;
         }
@@ -342,13 +342,13 @@ static int read_gsd_typemap(gsd_trajectory_t *gsd, molfile_atom_t *atoms)
         if (retval == -1)
             {
             SAFE_FREE(data);
-            vmdcon_printf(VMDCON_ERROR, "gsd) Type mapping 'particles/types' : %s\n", strerror(errno));
+            vmdcon_printf(VMDCON_ERROR, "gsdplugin) Type mapping 'particles/types' : %s\n", strerror(errno));
             return MOLFILE_ERROR;
             }
         else if (retval != 0)
             {
             SAFE_FREE(data);
-            vmdcon_printf(VMDCON_ERROR, "gsd) Error reading type mapping 'particles/types'\n");
+            vmdcon_printf(VMDCON_ERROR, "gsdplugin) Error reading type mapping 'particles/types'\n");
             return MOLFILE_ERROR;
             }
 
@@ -359,7 +359,7 @@ static int read_gsd_typemap(gsd_trajectory_t *gsd, molfile_atom_t *atoms)
         const size_t max_nametype = (max_name < max_type) ? max_name-1 : max_type-1;
         if (max_nametype < (entry->M - 1))
             {
-            vmdcon_printf(VMDCON_WARN, "gsd) Type names cannot exceed %d characters, truncating\n", max_nametype);
+            vmdcon_printf(VMDCON_WARN, "gsdplugin) Type names cannot exceed %d characters, truncating\n", max_nametype);
             }
 
         // remalloc the type mapping and copy from the gsd data with null termination
@@ -604,13 +604,13 @@ static int read_bondmap(gsd_handle_t *handle,
         if (retval == -1)
             {
             SAFE_FREE(data);
-            vmdcon_printf(VMDCON_ERROR, "gsd) Type mapping '%s' : %s\n", name, strerror(errno));
+            vmdcon_printf(VMDCON_ERROR, "gsdplugin) Type mapping '%s' : %s\n", name, strerror(errno));
             return MOLFILE_ERROR;
             }
         else if (retval != 0)
             {
             SAFE_FREE(data);
-            vmdcon_printf(VMDCON_ERROR, "gsd) Error reading type mapping '%s'\n", name);
+            vmdcon_printf(VMDCON_ERROR, "gsdplugin) Error reading type mapping '%s'\n", name);
             return MOLFILE_ERROR;
             }
 
@@ -791,13 +791,13 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
             }
         if (retval != 0)
             {
-            vmdcon_printf(VMDCON_ERROR, "gsd) Error reading number of particles from frame %d, aborting.\n", gsd->frame);
+            vmdcon_printf(VMDCON_ERROR, "gsdplugin) Error reading number of particles from frame %d, aborting.\n", gsd->frame);
             ++gsd->frame;
             return MOLFILE_ERROR;
             }
         else if (cur_natoms != natoms)
             {
-            vmdcon_printf(VMDCON_ERROR, "gsd) VMD does not support changing number of particles (%d in frame %d, but %d in frame 0), aborting.\n", cur_natoms, gsd->frame, natoms);
+            vmdcon_printf(VMDCON_ERROR, "gsdplugin) VMD does not support changing number of particles (%d in frame %d, but %d in frame 0), aborting.\n", cur_natoms, gsd->frame, natoms);
             ++gsd->frame;
             return MOLFILE_ERROR;
             }
@@ -811,7 +811,7 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
             }
         else
             {
-            vmdcon_printf(VMDCON_ERROR, "gsd) Error reading timestep from frame %d, aborting.\n", gsd->frame);
+            vmdcon_printf(VMDCON_ERROR, "gsdplugin) Error reading timestep from frame %d, aborting.\n", gsd->frame);
             ++gsd->frame;
             return MOLFILE_ERROR;
             }
@@ -826,7 +826,7 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
         // if retval is still nonzero, then there was an error, abort
         if (retval != 0)
             {
-            vmdcon_printf(VMDCON_ERROR, "gsd) Error reading box size from frame %d, aborting.\n", gsd->frame);
+            vmdcon_printf(VMDCON_ERROR, "gsdplugin) Error reading box size from frame %d, aborting.\n", gsd->frame);
             ++gsd->frame;
             return MOLFILE_ERROR;
             }
@@ -860,7 +860,7 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
         retval = read_chunk(gsd->handle, ts->coords, gsd->frame, "particles/position", 3*gsd->natoms*sizeof(float), gsd->natoms);
         if (retval != 0)
             {
-            vmdcon_printf(VMDCON_ERROR, "gsd) Error reading particle positions from frame %d, aborting.\n", gsd->frame);
+            vmdcon_printf(VMDCON_ERROR, "gsdplugin) Error reading particle positions from frame %d, aborting.\n", gsd->frame);
             ++gsd->frame;
             return MOLFILE_ERROR;
             }
@@ -876,7 +876,7 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
 
             if (retval != 0)
                 {
-                vmdcon_printf(VMDCON_ERROR, "gsd) Error reading particle velocities from frame %d, aborting.\n", gsd->frame);
+                vmdcon_printf(VMDCON_ERROR, "gsdplugin) Error reading particle velocities from frame %d, aborting.\n", gsd->frame);
                 ++gsd->frame;
                 return MOLFILE_ERROR;
                 }
