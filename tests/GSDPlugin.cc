@@ -4,7 +4,7 @@
 #include "GSDPlugin.h"
 
 GSDPlugin::GSDPlugin()
-    : plugin_(nullptr), init_(nullptr), fini_(nullptr)
+    : plugin_(NULL), init_(NULL), fini_(NULL)
     {
     lib = DynamicLibrary("./gsdplugin.so");
 

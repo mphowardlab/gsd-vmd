@@ -13,7 +13,7 @@ class DynamicLibrary
     public:
         //! Default constructor
         DynamicLibrary()
-            : handle_(nullptr)
+            : handle_(NULL)
             {
             }
 
@@ -22,7 +22,7 @@ class DynamicLibrary
          * \param lib Library to open
          */
         DynamicLibrary(const std::string& lib)
-            : handle_(nullptr), lib_(lib)
+            : handle_(NULL), lib_(lib)
             {
             }
 

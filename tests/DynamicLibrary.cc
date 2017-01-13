@@ -19,7 +19,7 @@ bool DynamicLibrary::open()
     if (!handle_)
         {
         std::cerr << dlerror() << std::endl;
-        handle_ = nullptr;
+        handle_ = NULL;
         return false;
         }
     else
@@ -30,11 +30,11 @@ bool DynamicLibrary::open()
 
 /*!
  * \param name Symbol name
- * \returns Result of load on success, or nullptr on failure
+ * \returns Result of load on success, or NULL on failure
  */
 void* DynamicLibrary::load(const std::string& name) const
     {
-    if (!handle_) return nullptr;
+    if (!handle_) return NULL;
 
     // flush error handling
     dlerror();
@@ -43,7 +43,7 @@ void* DynamicLibrary::load(const std::string& name) const
     if (!result)
         {
         std::cerr << dlerror() << std::endl;
-        return nullptr;
+        return NULL;
         }
     return result;
     }
@@ -53,6 +53,6 @@ void DynamicLibrary::close()
     if (handle_)
         {
         dlclose(handle_);
-        handle_ = nullptr;
+        handle_ = NULL;
         }
     }
