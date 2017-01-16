@@ -1,6 +1,9 @@
 # Copyright (c) 2017, Michael P. Howard
 # This file is part of the gsd-vmd project, released under the Modified BSD License.
 
+set(CMAKE_SKIP_BUILD_RPATH FALSE)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+
 add_library(catch catch.cc)
 
 add_library(gsdplugin_loader DynamicLibrary.cc GSDPlugin.cc)
@@ -14,7 +17,7 @@ find_program(VALGRIND valgrind)
 if(VALGRIND)
     add_executable(memcheck_gsdplugin memcheck_gsdplugin.cc)
     target_link_libraries(memcheck_gsdplugin gsdplugin gsdplugin_loader)
-    add_test(memcheck-gsdplugin COMMAND ${VALGRIND} --leak-check=full --error-exitcode=123 ${CMAKE_CURRENT_BINARY_DIR}/memcheck_gsdplugin)
+    add_test(NAME memcheck-gsdplugin COMMAND ${VALGRIND} --leak-check=full --error-exitcode=123 ${CMAKE_CURRENT_BINARY_DIR}/memcheck_gsdplugin)
 endif()
 
 add_custom_command(TARGET test_gsdplugin POST_BUILD

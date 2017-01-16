@@ -15,7 +15,7 @@ TEST_CASE("DynamicLibrary")
     // valid plugin
     SECTION("gsdplugin")
         {
-        DynamicLibrary lib("./gsdplugin.so");
+        DynamicLibrary lib("gsdplugin.so");
 
         // open the plugin library
         REQUIRE(lib.open());
@@ -36,7 +36,7 @@ TEST_CASE("DynamicLibrary")
     // invalid plugin
     SECTION("foobar")
         {
-        DynamicLibrary lib("./foobar.so");
+        DynamicLibrary lib("foobar.so");
 
         // open the plugin library
         REQUIRE(!lib.open());

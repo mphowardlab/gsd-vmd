@@ -6,7 +6,7 @@
 GSDPlugin::GSDPlugin()
     : plugin_(NULL), init_(NULL), fini_(NULL)
     {
-    lib = DynamicLibrary("./gsdplugin.so");
+    lib = DynamicLibrary("gsdplugin.so");
 
     // initialize plugin, and call register to get a pointer to the plugin
     if (init())
