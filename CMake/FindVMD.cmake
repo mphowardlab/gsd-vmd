@@ -19,7 +19,7 @@
 
 if (VMD_FOUND)
     return()
-endif()
+endif (VMD_FOUND)
 
 # default guesses for where to find VMD, lowest priority
 if (LINUX)
@@ -56,19 +56,20 @@ find_library(VMD_XYZ_PLUGIN NAME "xyzplugin.so" PATHS ${VMD_PATHS})
 if (VMD_XYZ_PLUGIN)
     get_filename_component(VMD_PLUGIN_MOLFILE_PATH ${VMD_XYZ_PLUGIN} PATH)
     set(VMD_PLUGIN_MOLFILE_PATH ${VMD_PLUGIN_MOLFILE_PATH} CACHE PATH "Path to VMD molfile plugin libraries.")
-endif(VMD_XYZ_PLUGIN)
+endif (VMD_XYZ_PLUGIN)
 unset(VMD_XYZ_PLUGIN CACHE)
 
-# the plugin path should be two directories above the molfile library path
-get_filename_component(VMD_PLUGIN_PATH ${VMD_PLUGIN_MOLFILE_PATH} PATH)
-get_filename_component(VMD_PLUGIN_PATH ${VMD_PLUGIN_PATH} PATH)
+# Try to get the include path if the plugin path is set
+if (VMD_PLUGIN_MOLFILE_PATH)
+    # the plugin path should be two directories above the molfile library path
+    get_filename_component(VMD_PLUGIN_PATH ${VMD_PLUGIN_MOLFILE_PATH} PATH)
+    get_filename_component(VMD_PLUGIN_PATH ${VMD_PLUGIN_PATH} PATH)
 
-# validate that directory exists and is real, otherwise just set it to an empty value
-if (EXISTS ${VMD_PLUGIN_PATH}/include)
-    set(VMD_PLUGIN_INCLUDE_PATH "${VMD_PLUGIN_PATH}/include" CACHE PATH "Path to VMD plugin includes.")
-else (EXISTS ${VMD_PLUGIN_PATH}/include)
-    set(VMD_PLUGIN_INCLUDE_PATH "" CACHE PATH "Path to VMD plugin includes.")
-endif (EXISTS ${VMD_PLUGIN_PATH}/include)
+    # validate that directory exists and is real
+    if (EXISTS ${VMD_PLUGIN_PATH}/include)
+        set(VMD_PLUGIN_INCLUDE_PATH "${VMD_PLUGIN_PATH}/include" CACHE PATH "Path to VMD plugin includes.")
+    endif (EXISTS ${VMD_PLUGIN_PATH}/include)
+endif (VMD_PLUGIN_MOLFILE_PATH)
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(VMD DEFAULT_MSG VMD_PLUGIN_INCLUDE_PATH VMD_PLUGIN_MOLFILE_PATH)
