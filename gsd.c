@@ -1,11 +1,11 @@
-// Copyright (c) 2016 The Regents of the University of Michigan
+// Copyright (c) 2016-2019 The Regents of the University of Michigan
 // This file is part of the General Simulation Data (GSD) project, released under the BSD 2-Clause License.
 
+#include <sys/stat.h>
 #ifdef _WIN32
 
 #define GSD_USE_MMAP 0
 #include <io.h>
-#include <sys/stat.h>
 
 #else // linux / mac
 
@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <fcntl.h>
+#include <errno.h>
 
 #include "gsd.h"
 
@@ -267,7 +268,12 @@ int __gsd_read_header(struct gsd_handle* handle)
     lseek(handle->fd, 0, SEEK_SET);
     size_t bytes_read = read(handle->fd, &handle->header, sizeof(struct gsd_header));
     if (bytes_read != sizeof(struct gsd_header))
-        return -1;
+        {
+        if (errno != 0)
+            return -1;
+        else
+            return -2;
+        }
 
     // validate the header
     if (handle->header.magic != 0x65DF65DF65DF65DF)
@@ -459,12 +465,84 @@ int gsd_create(const char *fname, const char *application, const char *schema, u
     }
 
 /*! \param handle Handle to open
+    \param fname File name
+    \param application Generating application name (truncated to 63 chars)
+    \param schema Schema name for data to be written in this GSD file (truncated to 63 chars)
+    \param schema_version Version of the scheme data to be written (make with gsd_make_version())
+    \param flags Either GSD_OPEN_READWRITE, or GSD_OPEN_APPEND
+    \param exclusive_create Set to non-zero to force exclusive creation of the file
+
+    \post Create an empty gsd file in a file of the given name. Overwrite any existing file at that location.
+
+    Open the generated gsd file in *handle*.
+
+    The file descriptor is closed if there when an error opening the file.
+
+    \return 0 on success. Negative value on failure:
+        * -1: IO error (check errno)
+        * -2: Not a GSD file
+        * -3: Invalid GSD file version
+        * -4: Corrupt file
+        * -5: Unable to allocate memory
+        * -6: Invalid argument
+*/
+int gsd_create_and_open(struct gsd_handle* handle,
+                        const char *fname,
+                        const char *application,
+                        const char *schema,
+                        uint32_t schema_version,
+                        const enum gsd_open_flag flags,
+                        int exclusive_create)
+    {
+    int extra_flags = 0;
+    #ifdef WIN32
+    extra_flags = _O_BINARY;
+    #endif
+
+    // set the open flags in the handle
+    if (flags == GSD_OPEN_READWRITE)
+        {
+        handle->open_flags = GSD_OPEN_READWRITE;
+        }
+    else if (flags == GSD_OPEN_READONLY)
+        {
+        return -6;
+        }
+    else if (flags == GSD_OPEN_APPEND)
+        {
+        handle->open_flags = GSD_OPEN_APPEND;
+        }
+
+    // set the exclusive create bit
+    if (exclusive_create)
+        extra_flags |= O_EXCL;
+
+    // create the file
+    handle->fd = open(fname, O_RDWR | O_CREAT | O_TRUNC | extra_flags,  S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+    int retval = __gsd_initialize_file(handle->fd, application, schema, schema_version);
+    if (retval != 0)
+        {
+        close(handle->fd);
+        return retval;
+        }
+
+    retval = __gsd_read_header(handle);
+    if (retval != 0)
+        {
+        close(handle->fd);
+        }
+    return retval;
+    }
+
+/*! \param handle Handle to open
     \param fname File name to open
-    \param flags Either GSD_OPEN_READWRITE or GSD_OPEN_READONLY
+    \param flags Either GSD_OPEN_READWRITE, GSD_OPEN_READONLY, or GSD_OPEN_APPEND
 
     \pre The file name \a fname is a GSD file.
 
     \post Open a GSD file and populates the handle for use by API calls.
+
+    The file descriptor is closed if there when an error opening the file.
 
     \return 0 on success. Negative value on failure:
         * -1: IO error (check errno)
@@ -486,7 +564,7 @@ int gsd_open(struct gsd_handle* handle, const char *fname, const enum gsd_open_f
     extra_flags = _O_BINARY;
     #endif
 
-    // create the file
+    // open the file
     if (flags == GSD_OPEN_READWRITE)
         {
         handle->fd = open(fname, O_RDWR | extra_flags);
@@ -503,7 +581,12 @@ int gsd_open(struct gsd_handle* handle, const char *fname, const enum gsd_open_f
         handle->open_flags = GSD_OPEN_APPEND;
         }
 
-    return __gsd_read_header(handle);
+    int retval = __gsd_read_header(handle);
+    if (retval != 0)
+        {
+        close(handle->fd);
+        }
+    return retval;
     }
 
 /*! \param handle Handle to an open GSD file
@@ -583,11 +666,6 @@ int gsd_close(struct gsd_handle* handle)
         handle->namelist = NULL;
 
         memset(handle, 0, sizeof(struct gsd_handle));
-
-        // close the file
-        int retval = close(fd);
-        if (retval != 0)
-            return -1;
         }
     else
     #endif
@@ -604,13 +682,13 @@ int gsd_close(struct gsd_handle* handle)
             handle->index = NULL;
 
             memset(handle, 0, sizeof(struct gsd_handle));
-
-            // close the file
-            int retval = close(fd);
-            if (retval != 0)
-                return -1;
             }
         }
+
+    // close the file
+    int retval = close(fd);
+    if (retval != 0)
+        return -1;
 
     return 0;
     }
@@ -689,7 +767,7 @@ int gsd_write_chunk(struct gsd_handle* handle,
     // validate input
     if (data == NULL)
         return -2;
-    if (N == 0 || M == 0)
+    if (M == 0)
         return -2;
     if (handle->open_flags == GSD_OPEN_READONLY)
         return -2;
@@ -858,7 +936,7 @@ int gsd_read_chunk(struct gsd_handle* handle, void* data, const struct gsd_index
 
 /*! \param type Type ID to query
 
-    \return Size of the given type, or 1 for an unknown type ID.
+    \return Size of the given type, or 0 for an unknown type ID.
 */
 size_t gsd_sizeof_type(enum gsd_type type)
     {

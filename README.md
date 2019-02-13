@@ -19,7 +19,7 @@ environment variable or as a build-time definition. Failing this,
 you can also force the values of your plugin installation directory
 and plugin include directory with the `VMD_PLUGIN_INCLUDE_PATH`
 and `VMD_PLUGIN_MOLFILE_PATH`. These directories are the location
-of your plugin headers (e.g., `molfile_plugin.h`) and 
+of your plugin headers (e.g., `molfile_plugin.h`) and
 system-specific molfile libraries, respectively.
 
 By default, gsd-vmd will be installed into `VMD_PLUGIN_MOLFILE_PATH`.
@@ -50,10 +50,10 @@ will also be run to detect memory leaks.
 * valgrind (optional, for testing only)
 
 ## Source code
-**GSD**: The GSD library (https://bitbucket.org/glotzer/gsd) is used for
+**GSD**: The GSD library (https://github.com/glotzerlab/gsd) is used for
 file reading under the following license:
 
-    Copyright (c) 2016-2017 The Regents of the University of Michigan
+    Copyright (c) 2016-2019 The Regents of the University of Michigan
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
