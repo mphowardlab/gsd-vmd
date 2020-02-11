@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2019, Michael P. Howard
+# Copyright (c) 2017-2020, Michael P. Howard
 # This file is part of the gsd-vmd project, released under the Modified BSD License.
 
 cmake_minimum_required(VERSION 3.1)
