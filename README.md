@@ -12,7 +12,7 @@ make install
 ```
 
 On Linux, gsd-vmd should automatically detect the location of your VMD
-installation, provided that it is on your path. On OS X, the VMD
+installation, provided that it is on your path. On macOS, the VMD
 installation can be trickier to find. You can hint the location
 of your VMD plugin directory by setting `VMDDIR` either as an
 environment variable or as a build-time definition. Failing this,
@@ -28,14 +28,17 @@ must ensure that this is added to your VMD search path, which is a
 tricky endeavour and not recommended. To uninstall the library, simply
 remove `gsdplugin.so` from the installation location.
 
-This plugin has been tested on Linux (Ubuntu 14.04) and Mac OS X (10.9.5)
-using gcc and clang compilers for x86 architecture. No support has been
-tested for Windows or other architectures. Both 32-bit and 64-bit
-support is enabled on OS X because, although most modern Mac machines
-now support 64-bit processing, the binary shipped with VMD is 32-bit,
-which could result in incompatibilities.
+This plugin has been tested on Linux using gcc and clang compilers
+for x86 architecture. It has also been successfully built for versions
+of the Mac operating system supporting 32-bit applications. However,
+beginning with macOS 10.15, VMD is currently not officially supported
+on macOS because 32-bit applications were deprecated. Users have
+reported success building the plugin against an unofficial 64-bit port
+of VMD. If you would like to try this, you should set the CMake
+option `CMAKE_OSX_ARCHITECTURES=x86_64` to only build in 64-bit.
+No support has been tested for Windows.
 
-To test your build (on Linux or OS X), run
+To test your build (on Linux), run
 
 ```bash
 make test
@@ -53,7 +56,7 @@ will also be run to detect memory leaks.
 **GSD**: The GSD library (https://github.com/glotzerlab/gsd) is used for
 file reading under the following license:
 
-    Copyright (c) 2016-2019 The Regents of the University of Michigan
+    Copyright (c) 2016-2020 The Regents of the University of Michigan
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without

@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2019, Michael P. Howard
+# Copyright (c) 2017-2020, Michael P. Howard
 # This file is part of the gsd-vmd project, released under the Modified BSD License.
 
 cmake_minimum_required(VERSION 3.1)
@@ -15,7 +15,7 @@ endif (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 
 # default is to compile for 32-bit and 64-bit architectures on OS X to guarantee compatibility
 if (APPLE)
-    set(CMAKE_OSX_ARCHITECTURES "i386;x86_64" CACHE STRING "Build architectures for OSX" FORCE)
+    set(CMAKE_OSX_ARCHITECTURES "i386;x86_64" CACHE STRING "Build architectures for OSX")
 endif (APPLE)
 
 # configure library target

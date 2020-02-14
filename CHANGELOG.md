@@ -5,6 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+- The embedded GSD library has been updated to v2.0.0. This version supports
+reading both GSD 1.0 (HOOMD < 2.9) and GSD 2.0 (HOOMD >= 2.9) files.
+- CMake can optionally configure 64-bit-only builds for macOS.
+- The license year has been updated.
 
 ## [0.2.0] - 2019-02-13
 ### Changed
