@@ -1,4 +1,5 @@
 Copyright (c) 2017-2020, Michael P. Howard
+Copyright (c) 2021, Auburn University
 
 All rights reserved.
 
