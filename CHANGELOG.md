@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2021-04-12
+- The embedded GSD library has been updated to v2.4.1.
+- The license has been updated. gsd-vmd is now maintained as part of our work
+  at Auburn University.
+
 ## [0.3.0] - 2020-02-13
 ### Changed
 - The embedded GSD library has been updated to v2.0.0. This version supports
@@ -34,7 +39,8 @@ reading both GSD 1.0 (HOOMD < 2.9) and GSD 2.0 (HOOMD >= 2.9) files.
 The plugin is able to read particle and bond data. Angles, dihedrals,
 and writing are not currently supported.
 
-[Unreleased]: https://github.com/mphoward/gsd-vmd/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/mphoward/gsd-vmd/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/mphoward/gsd-vmd/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/mphoward/gsd-vmd/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/mphoward/gsd-vmd/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/mphoward/gsd-vmd/compare/v0.1.1...v0.1.2
