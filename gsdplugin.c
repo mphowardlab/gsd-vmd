@@ -842,17 +842,17 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
         else
             {
             // define lattice constants in terms of box size and tilt factors
-            ts->A = box[0]; ts->B = (1.0 + box[3])*box[1]; ts->C = (1.0 + box[4] + box[5])*box[2];
+            const double xy = (double)box[3];
+            const double xz = (double)box[4];
+            const double yz = (double)box[5];
+            const double norm1 = sqrt(1.0 + xy*xy);
+            const double norm2 = sqrt(1.0 + xz*xz + yz*yz);
+            
+            ts->A = box[0]; ts->B = (float)norm1*box[1]; ts->C = (float)norm2*box[2];
             
             if (box[3] != 0.0f || box[4] != 0.0f || box[5] != 0.0f)
                 {
                 // need to resolve the tilt factors into angles
-                const double xy = (double)box[3];
-                const double xz = (double)box[4];
-                const double yz = (double)box[5];
-                const double norm1 = sqrt(1.0 + xy*xy);
-                const double norm2 = sqrt(1.0 + xz*xz + yz*yz);
-
                 const double cos_gamma= xy / norm1;
                 const double cos_beta = xz / norm2;
                 const double cos_alpha = (xy*xz + yz)/(norm1 * norm2);
