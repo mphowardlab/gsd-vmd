@@ -841,7 +841,9 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
             }
         else
             {
-            ts->A = box[0]; ts->B = box[1]; ts->C = box[2];
+            // define lattice constants in terms of box size and tilt factors
+            ts->A = box[0]; ts->B = (1.0 + box[3])*box[1]; ts->C = (1.0 + box[4] + box[5])*box[2];
+            
             if (box[3] != 0.0f || box[4] != 0.0f || box[5] != 0.0f)
                 {
                 // need to resolve the tilt factors into angles
