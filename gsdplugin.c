@@ -841,17 +841,19 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
             }
         else
             {
-            // define lattice constants in terms of box size and tilt factors
-            const double xy = (double)box[3];
-            const double xz = (double)box[4];
-            const double yz = (double)box[5];
-            const double norm1 = sqrt(1.0 + xy*xy);
-            const double norm2 = sqrt(1.0 + xz*xz + yz*yz);
-            
-            ts->A = box[0]; ts->B = (float)norm1*box[1]; ts->C = (float)norm2*box[2];
-            
             if (box[3] != 0.0f || box[4] != 0.0f || box[5] != 0.0f)
                 {
+                // define lattice constants in terms of box size and tilt factors
+                const double xy = (double)box[3];
+                const double xz = (double)box[4];
+                const double yz = (double)box[5];
+                const double norm1 = sqrt(1.0 + xy*xy);
+                const double norm2 = sqrt(1.0 + xz*xz + yz*yz);
+
+                ts->A = box[0];
+                ts->B = (float)(norm1*box[1]);
+                ts->C = (float)(norm2*box[2]);
+                
                 // need to resolve the tilt factors into angles
                 const double cos_gamma= xy / norm1;
                 const double cos_beta = xz / norm2;
@@ -863,6 +865,7 @@ static int read_gsd_timestep(void *mydata, int natoms, molfile_timestep_t *ts)
                 }
             else // orthorhombic
                 {
+                ts->A = box[0]; ts->B = box[1]; ts->C = box[2];
                 ts->alpha = 90.0f; ts->beta = 90.0f; ts->gamma = 90.0f;
                 }
             }
