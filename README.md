@@ -13,14 +13,15 @@ make install
 
 On Linux, gsd-vmd should automatically detect the location of your VMD
 installation, provided that it is on your path. On macOS, the VMD
-installation can be trickier to find. You can hint the location
-of your VMD plugin directory by setting `VMDDIR` either as an
-environment variable or as a build-time definition. Failing this,
-you can also force the values of your plugin installation directory
-and plugin include directory with the `VMD_PLUGIN_INCLUDE_PATH`
-and `VMD_PLUGIN_MOLFILE_PATH`. These directories are the location
-of your plugin headers (e.g., `molfile_plugin.h`) and
-system-specific molfile libraries, respectively.
+installation can be trickier to find. You can specify the location of 
+your VMD plugin directory by setting `VMDDIR` either as an environment 
+variable or as a build-time definition. `VMDDIR` should point to the 
+parent directory that contains the plugin directory, rather than to 
+the plugin directory itself. Failing this, you can also force the values 
+of your plugin installation directory and plugin include directory 
+with the `VMD_PLUGIN_INCLUDE_PATH` and `VMD_PLUGIN_MOLFILE_PATH`. These 
+directories are the location of your plugin headers (e.g., `molfile_plugin.h`)
+and system-specific molfile libraries, respectively.
 
 By default, gsd-vmd will be installed into `VMD_PLUGIN_MOLFILE_PATH`.
 You can specify an alternative installation location; however, you
