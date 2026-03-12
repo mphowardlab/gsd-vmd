@@ -1117,7 +1117,7 @@ VMDPLUGIN_API int VMDPLUGIN_init()
     plugin.prettyname = "HOOMD-blue GSD File";
     plugin.author = "Michael P. Howard";
     plugin.majorv = 0;
-    plugin.minorv = 1;
+    plugin.minorv = 5;
 #ifdef _WIN32
     plugin.is_reentrant = VMDPLUGIN_THREADUNSAFE;
 #else
