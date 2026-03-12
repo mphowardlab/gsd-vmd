@@ -1,18 +1,17 @@
 // Copyright (c) 2017-2020, Michael P. Howard
-// Copyright (c) 2021, Auburn University
-// This file is part of the gsd-vmd project, released under the Modified BSD License.
+// Copyright (c) 2021-2026, Auburn University
+// Part of gsd-vmd, released under the BSD 3-Clause License.
 
 #include "GSDPlugin.h"
 
-GSDPlugin::GSDPlugin()
-    : plugin_(NULL), init_(NULL), fini_(NULL)
+GSDPlugin::GSDPlugin() : plugin_(NULL), init_(NULL), fini_(NULL)
     {
     lib = DynamicLibrary("gsdplugin.so");
 
     // initialize plugin, and call register to get a pointer to the plugin
     if (init())
         {
-        void *rfunc = lib.load("vmdplugin_register");
+        void* rfunc = lib.load("vmdplugin_register");
         if (rfunc)
             {
             ((regfunc)rfunc)(this, setPlugin);
@@ -22,12 +21,13 @@ GSDPlugin::GSDPlugin()
 
 bool GSDPlugin::init()
     {
-    if(!lib.open()) return false;
+    if (!lib.open())
+        return false;
 
     if (!init_)
         {
         // initialize the plugin library
-        void *ifunc = lib.load("vmdplugin_init");
+        void* ifunc = lib.load("vmdplugin_init");
         if (ifunc)
             {
             init_ = (initfunc)ifunc;
@@ -46,11 +46,12 @@ bool GSDPlugin::init()
 /*!
  * Must be static by design of the vmd api
  */
-int GSDPlugin::setPlugin(void *v, vmdplugin_t *plugin)
+int GSDPlugin::setPlugin(void* v, vmdplugin_t* plugin)
     {
-    if (!v || !plugin) return 1;
+    if (!v || !plugin)
+        return 1;
 
-    GSDPlugin *self = (GSDPlugin *)v;
+    GSDPlugin* self = (GSDPlugin*)v;
     self->plugin_ = plugin;
     return 0;
     }
@@ -58,11 +59,12 @@ int GSDPlugin::setPlugin(void *v, vmdplugin_t *plugin)
 //! Finalize the plugin
 void GSDPlugin::fini()
     {
-    if (!lib.open()) return;
+    if (!lib.open())
+        return;
 
     if (!fini_)
         {
-        void *ffunc = lib.load("vmdplugin_fini");
+        void* ffunc = lib.load("vmdplugin_fini");
         if (ffunc)
             {
             fini_ = (finifunc)ffunc;

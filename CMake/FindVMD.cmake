@@ -1,7 +1,3 @@
-# Copyright (c) 2017-2020, Michael P. Howard
-# Copyright (c) 2021, Auburn University
-# This file is part of the gsd-vmd project, released under the Modified BSD License.
-#
 # Search for a standard VMD plugin, using ideas borrowed from FindVMD.cmake in
 # GROMACS, https://github.com/gromacs/gromacs/blob/master/cmake/FindVMD.cmake
 #

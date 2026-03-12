@@ -1,14 +1,14 @@
 // Copyright (c) 2017-2020, Michael P. Howard
-// Copyright (c) 2021, Auburn University
-// This file is part of the gsd-vmd project, released under the Modified BSD License.
+// Copyright (c) 2021-2026, Auburn University
+// Part of gsd-vmd, released under the BSD 3-Clause License.
 
 /*!
  * \file test_dynamic_library.cc
  * \brief Test DynamicLibrary object used for testing plugin
  */
 
-#include "catch.hpp"
 #include "DynamicLibrary.h"
+#include "catch.hpp"
 
 //! Test the dynamic library loader for the testing harness
 TEST_CASE("DynamicLibrary")
@@ -22,13 +22,13 @@ TEST_CASE("DynamicLibrary")
         REQUIRE(lib.open());
 
         // initialize the plugin library
-        void *ifunc = lib.load("vmdplugin_init");
+        void* ifunc = lib.load("vmdplugin_init");
         REQUIRE(ifunc);
 
-        void *rfunc = lib.load("vmdplugin_register");
+        void* rfunc = lib.load("vmdplugin_register");
         REQUIRE(rfunc);
 
-        void *ffunc = lib.load("vmdplugin_fini");
+        void* ffunc = lib.load("vmdplugin_fini");
         REQUIRE(ffunc);
 
         lib.close();
@@ -43,13 +43,13 @@ TEST_CASE("DynamicLibrary")
         REQUIRE(!lib.open());
 
         // initialize the plugin library
-        void *ifunc = lib.load("vmdplugin_init");
+        void* ifunc = lib.load("vmdplugin_init");
         REQUIRE(!ifunc);
 
-        void *rfunc = lib.load("vmdplugin_register");
+        void* rfunc = lib.load("vmdplugin_register");
         REQUIRE(!rfunc);
 
-        void *ffunc = lib.load("vmdplugin_fini");
+        void* ffunc = lib.load("vmdplugin_fini");
         REQUIRE(!ffunc);
 
         lib.close();

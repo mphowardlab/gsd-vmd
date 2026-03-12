@@ -1,7 +1,3 @@
-# Copyright (c) 2017-2020, Michael P. Howard
-# Copyright (c) 2021, Auburn University
-# This file is part of the gsd-vmd project, released under the Modified BSD License.
-
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
 set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 
