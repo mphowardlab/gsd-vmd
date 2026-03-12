@@ -1,9 +1,9 @@
 // Copyright (c) 2017-2020, Michael P. Howard
-// Copyright (c) 2021, Auburn University
-// This file is part of the gsd-vmd project, released under the Modified BSD License.
+// Copyright (c) 2021-2026, Auburn University
+// Part of gsd-vmd, released under the BSD 3-Clause License.
 
-#include "catch.hpp"
 #include "GSDPlugin.h"
+#include "catch.hpp"
 #include "molfile_plugin.h"
 
 #include <string>
@@ -12,7 +12,7 @@
 TEST_CASE("GSDPlugin")
     {
     GSDPlugin p;
-    molfile_plugin_t *plugin = p();
+    molfile_plugin_t* plugin = p();
     REQUIRE(plugin);
 
     CHECK(plugin->abiversion == vmdplugin_ABIVERSION);
@@ -37,26 +37,26 @@ TEST_CASE("GSDPlugin")
 TEST_CASE("Read GSD")
     {
     GSDPlugin p;
-    molfile_plugin_t *plugin = p();
+    molfile_plugin_t* plugin = p();
     REQUIRE(plugin);
 
     int natoms = 0;
-    void *v = plugin->open_file_read("test.gsd", "gsd", &natoms);
+    void* v = plugin->open_file_read("test.gsd", "gsd", &natoms);
     REQUIRE(v != NULL);
     REQUIRE(natoms == 2);
 
     SECTION("structure")
         {
-        molfile_atom_t *atoms = new molfile_atom_t[natoms];
+        molfile_atom_t* atoms = new molfile_atom_t[natoms];
         REQUIRE(atoms);
 
         // cannot use any REQUIRE statements until atoms has been freed
         int optflags = 0;
         int retval = plugin->read_structure(v, &optflags, atoms);
         CHECK(retval == MOLFILE_SUCCESS);
-        CHECK( (optflags & MOLFILE_MASS) );
-        CHECK( (optflags & MOLFILE_CHARGE) );
-        CHECK( (optflags & MOLFILE_RADIUS) );
+        CHECK((optflags & MOLFILE_MASS));
+        CHECK((optflags & MOLFILE_CHARGE));
+        CHECK((optflags & MOLFILE_RADIUS));
 
         // mass, charge, radius of particle 2
         CHECK(std::string(atoms[0].type) == "A");
@@ -89,9 +89,16 @@ TEST_CASE("Read GSD")
         {
         int nbonds, nbondtypes;
         int *from, *to, *bondtype;
-        float *bondorder;
-        char **bondtypename;
-        int retval = plugin->read_bonds(v, &nbonds, &from, &to, &bondorder, &bondtype, &nbondtypes, &bondtypename);
+        float* bondorder;
+        char** bondtypename;
+        int retval = plugin->read_bonds(v,
+                                        &nbonds,
+                                        &from,
+                                        &to,
+                                        &bondorder,
+                                        &bondtype,
+                                        &nbondtypes,
+                                        &bondtypename);
         REQUIRE(retval == MOLFILE_SUCCESS);
 
         // bondorder is not supplied
@@ -109,7 +116,7 @@ TEST_CASE("Read GSD")
 
     SECTION("metadata")
         {
-        molfile_timestep_metadata_t *meta = new molfile_timestep_metadata_t;
+        molfile_timestep_metadata_t* meta = new molfile_timestep_metadata_t;
 
         // no more REQUIRE until meta is freed
         int retval = plugin->read_timestep_metadata(v, meta);
@@ -122,9 +129,9 @@ TEST_CASE("Read GSD")
 
     SECTION("timestep")
         {
-        molfile_timestep_t *ts = new molfile_timestep_t;
-        ts->coords = new float[natoms*3];
-        ts->velocities = new float[natoms*3];
+        molfile_timestep_t* ts = new molfile_timestep_t;
+        ts->coords = new float[natoms * 3];
+        ts->velocities = new float[natoms * 3];
 
         // no more REQUIRE until memory is freed
         int retval = plugin->read_next_timestep(v, natoms, ts);

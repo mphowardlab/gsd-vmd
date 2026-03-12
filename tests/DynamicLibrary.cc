@@ -1,6 +1,6 @@
 // Copyright (c) 2017-2020, Michael P. Howard
-// Copyright (c) 2021, Auburn University
-// This file is part of the gsd-vmd project, released under the Modified BSD License.
+// Copyright (c) 2021-2026, Auburn University
+// Part of gsd-vmd, released under the BSD 3-Clause License.
 
 #include "DynamicLibrary.h"
 
@@ -12,7 +12,8 @@
 bool DynamicLibrary::open()
     {
     // don't open twice
-    if (handle_) return true;
+    if (handle_)
+        return true;
 
     // flush the error handler
     dlerror();
@@ -35,12 +36,13 @@ bool DynamicLibrary::open()
  */
 void* DynamicLibrary::load(const std::string& name) const
     {
-    if (!handle_) return NULL;
+    if (!handle_)
+        return NULL;
 
     // flush error handling
     dlerror();
 
-    void *result = dlsym(handle_, name.c_str());
+    void* result = dlsym(handle_, name.c_str());
     if (!result)
         {
         std::cerr << dlerror() << std::endl;

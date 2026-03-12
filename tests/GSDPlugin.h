@@ -1,6 +1,6 @@
 // Copyright (c) 2017-2020, Michael P. Howard
-// Copyright (c) 2021, Auburn University
-// This file is part of the gsd-vmd project, released under the Modified BSD License.
+// Copyright (c) 2021-2026, Auburn University
+// Part of gsd-vmd, released under the BSD 3-Clause License.
 
 #ifndef GSDVMD_TESTS_GSD_PLUGIN_H_
 #define GSDVMD_TESTS_GSD_PLUGIN_H_
@@ -13,7 +13,7 @@ extern "C"
     //! VMD plugin init function
     typedef int (*initfunc)(void);
     //! VMD plugin registration function
-    typedef int (*regfunc)(void *, vmdplugin_register_cb);
+    typedef int (*regfunc)(void*, vmdplugin_register_cb);
     //! VMD plugin fini function
     typedef int (*finifunc)(void);
     }
@@ -22,39 +22,39 @@ extern "C"
 class GSDPlugin
     {
     public:
-        //! Constructor
-        GSDPlugin();
+    //! Constructor
+    GSDPlugin();
 
-        //! Accessor for the plugin
-        molfile_plugin_t* operator()() const
-            {
-            return (molfile_plugin_t*)plugin_;
-            }
+    //! Accessor for the plugin
+    molfile_plugin_t* operator()() const
+        {
+        return (molfile_plugin_t*)plugin_;
+        }
 
-        //! Destructor
-        ~GSDPlugin()
-            {
-            fini();
-            lib.close();
-            }
+    //! Destructor
+    ~GSDPlugin()
+        {
+        fini();
+        lib.close();
+        }
 
     private:
-        vmdplugin_t* plugin_; //!< VMD plugin
-        DynamicLibrary lib; //!< Dynamic library for GSD plugin
-        initfunc init_; //!< Function pointer to initialize the plugin
-        finifunc fini_; //!< Function pointer to finalize the plugin
+    vmdplugin_t* plugin_; //!< VMD plugin
+    DynamicLibrary lib;   //!< Dynamic library for GSD plugin
+    initfunc init_;       //!< Function pointer to initialize the plugin
+    finifunc fini_;       //!< Function pointer to finalize the plugin
 
-        //! Initialize the plugin
-        bool init();
+    //! Initialize the plugin
+    bool init();
 
-        //! Callback to set the plugin
-        /*!
-         * Must be static by design of the vmd api
-         */
-        static int setPlugin(void *v, vmdplugin_t *plugin);
+    //! Callback to set the plugin
+    /*!
+     * Must be static by design of the vmd api
+     */
+    static int setPlugin(void* v, vmdplugin_t* plugin);
 
-        //! Finalize the plugin
-        void fini();
+    //! Finalize the plugin
+    void fini();
     };
 
 #endif // GSDVMD_TESTS_GSD_PLUGIN_H_

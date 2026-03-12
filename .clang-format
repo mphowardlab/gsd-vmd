@@ -1,0 +1,31 @@
+---
+BasedOnStyle: WebKit
+AccessModifierOffset: 0
+AlignAfterOpenBracket: Align
+AlignEscapedNewlines: Left
+AlignOperands: Align
+AlignTrailingComments:
+  Kind: Always
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty
+BinPackArguments: false
+BinPackParameters: false
+BreakBeforeBraces: Whitesmiths
+BreakConstructorInitializers: BeforeColon
+BreakTemplateDeclarations: Yes
+ColumnLimit: 100
+Cpp11BracedListStyle: true
+FixNamespaceComments: true
+IncludeBlocks: Regroup
+InsertNewlineAtEOF: true
+KeepEmptyLines:
+  AtStartOfBlock: false
+  AtStartOfFile: false
+NamespaceIndentation: None
+SpaceAfterTemplateKeyword: false
+SpaceInEmptyBlock: false
+SpacesInLineCommentPrefix:
+  Maximum: 1
+TabWidth: 4
