@@ -1,5 +1,5 @@
 // Copyright (c) 2017-2020, Michael P. Howard
-// Copyright (c) 2021, Auburn University
+// Copyright (c) 2021-2026, Auburn University
 // Part of gsd-vmd, released under the BSD 3-Clause License.
 
 #include "gsd.h"
