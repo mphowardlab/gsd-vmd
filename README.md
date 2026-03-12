@@ -6,38 +6,29 @@ of VMD. Then, installation can be as simple as
 
 ```bash
 cd /path/to/gsd-vmd
-mkdir build && cd build
-cmake ..
-make install
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cd build
+cmake --build .
+cmake --install .
 ```
 
 On Linux, gsd-vmd should automatically detect the location of your VMD
-installation, provided that it is on your path. On macOS, the VMD
-installation can be trickier to find. You can specify the location of 
-your VMD plugin directory by setting `VMDDIR` either as an environment 
-variable or as a build-time definition. `VMDDIR` should point to the 
-parent directory that contains the plugin directory, rather than to 
-the plugin directory itself. Failing this, you can also force the values 
-of your plugin installation directory and plugin include directory 
-with the `VMD_PLUGIN_INCLUDE_PATH` and `VMD_PLUGIN_MOLFILE_PATH`. These 
-directories are the location of your plugin headers (e.g., `molfile_plugin.h`)
-and system-specific molfile libraries, respectively.
+installation, provided that it is on your path. On macOS, the VMD installation
+can be trickier to find. You can specify the location of your VMD plugin
+directory by setting `VMDDIR` either as an environment variable or as a
+build-time definition. `VMDDIR` should point to the parent directory that
+contains the plugin directory, rather than to the plugin directory itself.
+Failing this, you can also force the values of your plugin installation
+directory and plugin include directory with the `VMD_PLUGIN_INCLUDE_PATH` and
+`VMD_PLUGIN_MOLFILE_PATH`. These directories are the location of your plugin
+headers (e.g., `molfile_plugin.h`) and system-specific molfile libraries,
+respectively.
 
-By default, gsd-vmd will be installed into `VMD_PLUGIN_MOLFILE_PATH`.
-You can specify an alternative installation location; however, you
-must ensure that this is added to your VMD search path, which is a
-tricky endeavour and not recommended. To uninstall the library, simply
-remove `gsdplugin.so` from the installation location.
-
-This plugin has been tested on Linux using gcc and clang compilers
-for x86 architecture. It has also been successfully built for versions
-of the Mac operating system supporting 32-bit applications. However,
-beginning with macOS 10.15, VMD is currently not officially supported
-on macOS because 32-bit applications were deprecated. Users have
-reported success building the plugin against an unofficial 64-bit port
-of VMD. If you would like to try this, you should set the CMake
-option `CMAKE_OSX_ARCHITECTURES=x86_64` to only build in 64-bit.
-No support has been tested for Windows.
+By default, gsd-vmd will be installed into `VMD_PLUGIN_MOLFILE_PATH`. You can
+specify an alternative installation location; however, you must ensure that this
+is added to your VMD search path, which is a tricky endeavour and not
+recommended. To uninstall the library, simply remove `gsdplugin.so` from the
+installation location.
 
 To test your build (on Linux), run
 
@@ -46,11 +37,17 @@ make test
 ```
 
 out of your build directory. If you have valgrind installed, a memcheck
-will also be run to detect memory leaks.
+will also be run to detect memory leaks. You can also try running an example
+visualization from the `examples` directory
+
+```bash
+cd examples/ethanol
+vmd -e ethanol.tcl
+```
 
 ## Requirements
-* A compiler supporting basic C99 standard (tested gcc and clang)
-* CMake >= 3.1
+* A compiler supporting basic C99 standard (tested gcc)
+* CMake >= 3.10
 * valgrind (optional, for testing only)
 
 ## Source code

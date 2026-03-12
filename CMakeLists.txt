@@ -2,7 +2,7 @@
 # Copyright (c) 2021, Auburn University
 # This file is part of the gsd-vmd project, released under the Modified BSD License.
 
-cmake_minimum_required(VERSION 3.10...4.2)
+cmake_minimum_required(VERSION 3.10)
 
 project(gsd-vmd)
 set(CMAKE_C_STANDARD 99)
@@ -21,6 +21,7 @@ set_target_properties(gsdplugin PROPERTIES PREFIX "" SUFFIX ".so")
 install(TARGETS gsdplugin DESTINATION ${VMD_PLUGIN_MOLFILE_PATH})
 
 # add the testing tree
+option(BUILD_TESTING "Build the testing tree." OFF)
 enable_testing()
 include(CTest)
 if (BUILD_TESTING)
