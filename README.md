@@ -54,7 +54,7 @@ vmd -e ethanol.tcl
 **GSD**: The GSD library (https://github.com/glotzerlab/gsd) is used for
 file reading under the following license:
 
-    Copyright (c) 2016-2020 The Regents of the University of Michigan
+    Copyright (c) 2016-2025 The Regents of the University of Michigan
     All rights reserved.
 
     Redistribution and use in source and binary forms, with or without
