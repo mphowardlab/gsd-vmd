@@ -66,7 +66,7 @@ static int resize(void** buffer, size_t* buffer_capacity, size_t N, size_t M, si
         return -1;
 
     // no need to resize, buffer always grows
-    if (*buffer && num_bytes <= *buffer_capacity)
+    if (num_bytes <= *buffer_capacity)
         return 0;
 
     // reallocate the buffer
