@@ -14,21 +14,37 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-//! Safely allocate a chunk of 2D memory without allowing overflow
-static void* safe_malloc(size_t N, size_t M, size_t element_size)
+static int safe_multiply_size(size_t N, size_t M, size_t element_size, size_t* total_size)
     {
     if (N == 0 || M == 0 || element_size == 0)
-        return NULL;
+        {
+        *total_size = 0;
+        return 0;
+        }
 
     if (N > SIZE_MAX / M)
-        return NULL;
+        return -1;
     size_t num_elements = N * M;
 
     if (num_elements > SIZE_MAX / element_size)
-        return NULL;
-    size_t num_bytes = num_elements * element_size;
+        return -1;
 
-    return malloc(num_bytes);
+    *total_size = num_elements * element_size;
+    return 0;
+    }
+
+//! Safely allocate a chunk of 2D memory without allowing overflow
+static void* safe_malloc(size_t N, size_t M, size_t element_size)
+    {
+    size_t num_bytes = 0;
+    if (safe_multiply_size(N, M, element_size, &num_bytes) == 0 && num_bytes > 0)
+        {
+        return malloc(num_bytes);
+        }
+    else
+        {
+        return NULL;
+        }
     }
 
 //! Macro to safely free and NULL a pointer \a p
@@ -41,6 +57,32 @@ static void* safe_malloc(size_t N, size_t M, size_t element_size)
             p = NULL; \
             }         \
         } while (0)
+
+//! Resize memory
+static int resize(void** buffer, size_t* buffer_capacity, size_t N, size_t M, size_t element_size)
+    {
+    size_t num_bytes = 0;
+    if (safe_multiply_size(N, M, element_size, &num_bytes) != 0)
+        return -1;
+
+    // no need to resize, buffer always grows
+    if (*buffer && num_bytes <= *buffer_capacity)
+        return 0;
+
+    // reallocate the buffer
+    SAFE_FREE(*buffer);
+    *buffer = malloc(num_bytes);
+    if (!*buffer)
+        {
+        *buffer_capacity = 0;
+        return -1;
+        }
+    else
+        {
+        *buffer_capacity = num_bytes;
+        return 0;
+        }
+    }
 
 //! GSD handle object
 typedef struct gsd_handle gsd_handle_t;
@@ -225,6 +267,13 @@ static void free_gsd_trajectory(gsd_trajectory_t* gsd)
     SAFE_FREE(gsd);
     }
 
+//! Read the size of a chunk element
+static size_t read_chunk_element_size(gsd_handle_t* handle, uint64_t frame, const char* name)
+    {
+    const struct gsd_index_entry* entry = gsd_find_chunk(handle, frame, name);
+    return (entry) ? gsd_sizeof_type((enum gsd_type)entry->type) : 0;
+    }
+
 //! Read a chunk from the GSD file
 /*!
  * \param handle Pointer to the GSD file handle
@@ -249,7 +298,7 @@ static int read_chunk(gsd_handle_t* handle,
                       size_t element_size)
     {
     const struct gsd_index_entry* entry = gsd_find_chunk(handle, frame, name);
-    if (entry == NULL)
+    if (!entry)
         {
         // silently ignore missing entries
         return 1;
@@ -342,10 +391,10 @@ static void* open_gsd_read(const char* filename, const char* filetype, int* nato
         free_gsd_trajectory(gsd);
         return NULL;
         }
-    if (gsd->handle->header.schema_version >= gsd_make_version(2, 0))
+    if (gsd->handle->header.schema_version >= gsd_make_version(3, 0))
         {
         vmdcon_printf(VMDCON_ERROR,
-                      "gsdplugin) Invalid schema version in '%s', expecting 1.x\n",
+                      "gsdplugin) Invalid schema version in '%s', expecting >=1, <3\n",
                       filename);
         free_gsd_trajectory(gsd);
         return NULL;
@@ -542,23 +591,45 @@ static int read_gsd_types(gsd_trajectory_t* gsd, molfile_atom_t* atoms)
 /*!
  * \param gsd GSD trajectory
  * \param atoms VMD atom properties
- * \param tmp Pointer to temporary memory allocated to hold the number of atoms
- *            to read from \a gsd
+ * \param buffer Temporary memory
+ * \param buffer_capacity Size of temporary memory
  *
  * \returns MOLFILE_SUCCESS on success or MOLFILE_ERROR on failure
  */
-static int read_gsd_mass(gsd_trajectory_t* gsd, molfile_atom_t* atoms, float* tmp)
+static int
+read_gsd_mass(gsd_trajectory_t* gsd, molfile_atom_t* atoms, void** buffer, size_t* buffer_capacity)
     {
-    if (!gsd || !atoms || !tmp)
+    if (!gsd || !atoms)
         return MOLFILE_ERROR;
 
-    int retval = read_chunk(gsd->handle, tmp, 0, "particles/mass", gsd->natoms, 1, sizeof(float));
+    // resize buffer as needed
+    const size_t element_size = read_chunk_element_size(gsd->handle, 0, "particles/mass");
+    if (resize(buffer, buffer_capacity, gsd->natoms, 1, element_size) != 0)
+        {
+        return MOLFILE_ERROR;
+        }
+
+    // read values, accounting for different precisions
+    int retval
+        = read_chunk(gsd->handle, *buffer, 0, "particles/mass", gsd->natoms, 1, element_size);
     if (retval == GSD_SUCCESS)
         {
         molfile_atom_t* a = atoms;
-        for (int i = 0; i < gsd->natoms; ++i, ++a)
+        if (element_size == sizeof(double))
             {
-            a->mass = tmp[i];
+            double* mass = (double*)*buffer;
+            for (int i = 0; i < gsd->natoms; ++i, ++a)
+                {
+                a->mass = mass[i];
+                }
+            }
+        else
+            {
+            float* mass = (float*)*buffer;
+            for (int i = 0; i < gsd->natoms; ++i, ++a)
+                {
+                a->mass = mass[i];
+                }
             }
         }
     else if (retval != 1)
@@ -573,23 +644,46 @@ static int read_gsd_mass(gsd_trajectory_t* gsd, molfile_atom_t* atoms, float* tm
 /*!
  * \param gsd GSD trajectory
  * \param atoms VMD atom properties
- * \param tmp Pointer to temporary memory allocated to hold the number of atoms
- *            to read from \a gsd
+ * \param buffer Temporary memory
+ * \param buffer_capacity Size of temporary memory
  *
  * \returns MOLFILE_SUCCESS on success or MOLFILE_ERROR on failure
  */
-static int read_gsd_charge(gsd_trajectory_t* gsd, molfile_atom_t* atoms, float* tmp)
+static int read_gsd_charge(gsd_trajectory_t* gsd,
+                           molfile_atom_t* atoms,
+                           void** buffer,
+                           size_t* buffer_capacity)
     {
-    if (!gsd || !atoms || !tmp)
+    if (!gsd || !atoms)
         return MOLFILE_ERROR;
 
-    int retval = read_chunk(gsd->handle, tmp, 0, "particles/charge", gsd->natoms, 1, sizeof(float));
+    // resize buffer as needed
+    const size_t element_size = read_chunk_element_size(gsd->handle, 0, "particles/charge");
+    if (resize(buffer, buffer_capacity, gsd->natoms, 1, element_size) != 0)
+        {
+        return MOLFILE_ERROR;
+        }
+
+    int retval
+        = read_chunk(gsd->handle, *buffer, 0, "particles/charge", gsd->natoms, 1, element_size);
     if (retval == GSD_SUCCESS)
         {
         molfile_atom_t* a = atoms;
-        for (int i = 0; i < gsd->natoms; ++i, ++a)
+        if (element_size == sizeof(double))
             {
-            a->charge = tmp[i];
+            double* charge = (double*)*buffer;
+            for (int i = 0; i < gsd->natoms; ++i, ++a)
+                {
+                a->charge = charge[i];
+                }
+            }
+        else
+            {
+            float* charge = (float*)*buffer;
+            for (int i = 0; i < gsd->natoms; ++i, ++a)
+                {
+                a->charge = charge[i];
+                }
             }
         }
     else if (retval != 1)
@@ -604,24 +698,46 @@ static int read_gsd_charge(gsd_trajectory_t* gsd, molfile_atom_t* atoms, float* 
 /*!
  * \param gsd GSD trajectory
  * \param atoms VMD atom properties
- * \param tmp Pointer to temporary memory allocated to hold the number of atoms
- *            to read from \a gsd
+ * \param buffer Temporary memory
+ * \param buffer_capacity Size of temporary memory
  *
  * \returns MOLFILE_SUCCESS on success or MOLFILE_ERROR on failure
  */
-static int read_gsd_radius(gsd_trajectory_t* gsd, molfile_atom_t* atoms, float* tmp)
+static int read_gsd_radius(gsd_trajectory_t* gsd,
+                           molfile_atom_t* atoms,
+                           void** buffer,
+                           size_t* buffer_capacity)
     {
-    if (!gsd || !atoms || !tmp)
+    if (!gsd || !atoms)
         return MOLFILE_ERROR;
 
+    // resize buffer as needed
+    const size_t element_size = read_chunk_element_size(gsd->handle, 0, "particles/diameter");
+    if (resize(buffer, buffer_capacity, gsd->natoms, 1, element_size) != 0)
+        {
+        return MOLFILE_ERROR;
+        }
+
     int retval
-        = read_chunk(gsd->handle, tmp, 0, "particles/diameter", gsd->natoms, 1, sizeof(float));
+        = read_chunk(gsd->handle, *buffer, 0, "particles/diameter", gsd->natoms, 1, element_size);
     if (retval == GSD_SUCCESS)
         {
         molfile_atom_t* a = atoms;
-        for (int i = 0; i < gsd->natoms; ++i, ++a)
+        if (element_size == sizeof(double))
             {
-            a->radius = 0.5f * tmp[i];
+            double* diameter = (double*)*buffer;
+            for (int i = 0; i < gsd->natoms; ++i, ++a)
+                {
+                a->radius = 0.5f * diameter[i];
+                }
+            }
+        else
+            {
+            float* diameter = (float*)*buffer;
+            for (int i = 0; i < gsd->natoms; ++i, ++a)
+                {
+                a->radius = 0.5f * diameter[i];
+                }
             }
         }
     else if (retval != 1)
@@ -675,34 +791,29 @@ static int read_gsd_structure(void* mydata, int* optflags, molfile_atom_t* atoms
     if (read_gsd_types(gsd, atoms) != MOLFILE_SUCCESS)
         return MOLFILE_ERROR;
 
-    // try to set optional properties
-    float* props = (float*)safe_malloc(gsd->natoms, 1, sizeof(float));
-    if (!props)
-        {
-        vmdcon_printf(VMDCON_ERROR,
-                      "gsdplugin) Failed to allocate memory for %d atom properties\n",
-                      gsd->natoms);
-        return MOLFILE_ERROR;
-        }
+    // shared buffer for optional properties
+    void* buffer = NULL;
+    size_t buffer_capacity = 0;
+
     // mass
-    if (read_gsd_mass(gsd, atoms, props) != MOLFILE_SUCCESS)
+    if (read_gsd_mass(gsd, atoms, &buffer, &buffer_capacity) != MOLFILE_SUCCESS)
         {
-        SAFE_FREE(props);
+        SAFE_FREE(buffer);
         return MOLFILE_ERROR;
         }
     // charge
-    if (read_gsd_charge(gsd, atoms, props) != MOLFILE_SUCCESS)
+    if (read_gsd_charge(gsd, atoms, &buffer, &buffer_capacity) != MOLFILE_SUCCESS)
         {
-        SAFE_FREE(props);
+        SAFE_FREE(buffer);
         return MOLFILE_ERROR;
         }
     // radius
-    if (read_gsd_radius(gsd, atoms, props) != MOLFILE_SUCCESS)
+    if (read_gsd_radius(gsd, atoms, &buffer, &buffer_capacity) != MOLFILE_SUCCESS)
         {
-        SAFE_FREE(props);
+        SAFE_FREE(buffer);
         return MOLFILE_ERROR;
         }
-    SAFE_FREE(props);
+    SAFE_FREE(buffer);
 
     return MOLFILE_SUCCESS;
     }
@@ -933,7 +1044,7 @@ static int read_gsd_timestep(void* mydata, int natoms, molfile_timestep_t* ts)
     if (gsd->frame >= gsd->numframes)
         return MOLFILE_EOF;
 
-    if (ts != NULL)
+    if (ts)
         {
         // read the number of particles as a sanity check
         int cur_natoms = 0;
@@ -985,24 +1096,58 @@ static int read_gsd_timestep(void* mydata, int natoms, molfile_timestep_t* ts)
             return MOLFILE_ERROR;
             }
 
-        // read the box size, and convert tilt factors to angles
+        // read the box and convert tilt factors to angles
         float box[6] = {1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f}; // default box specification
-        retval = read_chunk(gsd->handle, box, gsd->frame, "configuration/box", 6, 1, sizeof(float));
-        if (retval == 1) // extract from frame 0 otherwise
             {
-            retval = read_chunk(gsd->handle, box, 0, "configuration/box", 6, 1, sizeof(float));
-            }
-        // if retval is still nonzero, then there was an error, abort
-        if (retval != GSD_SUCCESS)
-            {
-            vmdcon_printf(VMDCON_ERROR,
-                          "gsdplugin) Error reading box size from frame %d, aborting.\n",
-                          gsd->frame);
-            ++gsd->frame;
-            return MOLFILE_ERROR;
-            }
-        else
-            {
+            // get size of float for box, using either current frame or frame 0
+            uint64_t box_frame = gsd->frame;
+            size_t element_size
+                = read_chunk_element_size(gsd->handle, box_frame, "configuration/box");
+            if (element_size == 0)
+                {
+                box_frame = 0;
+                read_chunk_element_size(gsd->handle, box_frame, "configuration/box");
+                }
+
+            int retval = GSD_ERROR_FILE_CORRUPT;
+            if (element_size == sizeof(double))
+                {
+                double buffer[6];
+                retval = read_chunk(gsd->handle,
+                                    buffer,
+                                    box_frame,
+                                    "configuration/box",
+                                    6,
+                                    1,
+                                    element_size);
+                if (retval == GSD_SUCCESS)
+                    {
+                    for (int i = 0; i < 6; ++i)
+                        {
+                        box[i] = buffer[i];
+                        }
+                    }
+                }
+            else if (element_size == sizeof(float))
+                {
+                retval = read_chunk(gsd->handle,
+                                    box,
+                                    box_frame,
+                                    "configuration/box",
+                                    6,
+                                    1,
+                                    element_size);
+                }
+
+            if (retval != GSD_SUCCESS)
+                {
+                vmdcon_printf(VMDCON_ERROR,
+                              "gsdplugin) Error reading box from frame %d, aborting.\n",
+                              gsd->frame);
+                ++gsd->frame;
+                return MOLFILE_ERROR;
+                }
+
             if (box[3] != 0.0f || box[4] != 0.0f || box[5] != 0.0f)
                 {
                 // define lattice constants in terms of box size and tilt factors
@@ -1036,42 +1181,136 @@ static int read_gsd_timestep(void* mydata, int natoms, molfile_timestep_t* ts)
                 }
             }
 
-        // read positions
-        retval = read_chunk(gsd->handle,
-                            ts->coords,
-                            gsd->frame,
-                            "particles/position",
-                            gsd->natoms,
-                            3,
-                            sizeof(float));
-        if (retval != GSD_SUCCESS)
+        // buffer for positions and velocities
+        double* particle_buffer = NULL;
+        size_t particle_buffer_capacity = 0;
+
+            // read positions
             {
-            vmdcon_printf(VMDCON_ERROR,
-                          "gsdplugin) Error reading particle positions from frame %d, aborting.\n",
-                          gsd->frame);
-            ++gsd->frame;
-            return MOLFILE_ERROR;
+            size_t element_size
+                = read_chunk_element_size(gsd->handle, gsd->frame, "particles/position");
+
+            int retval = GSD_ERROR_FILE_CORRUPT;
+            if (element_size == sizeof(double))
+                {
+                if (resize((void**)&particle_buffer,
+                           &particle_buffer_capacity,
+                           gsd->natoms,
+                           3,
+                           element_size)
+                    != 0)
+                    {
+                    vmdcon_printf(VMDCON_ERROR,
+                                  "gsdplugin) Error allocating buffer for particle positions from "
+                                  "frame %d, aborting.\n",
+                                  gsd->frame);
+                    SAFE_FREE(particle_buffer);
+                    ++gsd->frame;
+                    return MOLFILE_ERROR;
+                    }
+
+                retval = read_chunk(gsd->handle,
+                                    particle_buffer,
+                                    gsd->frame,
+                                    "particles/position",
+                                    gsd->natoms,
+                                    3,
+                                    element_size);
+
+                if (retval == GSD_SUCCESS)
+                    {
+                    // this call is always safe because the malloc above succeed
+                    size_t num_elements = 0;
+                    safe_multiply_size(gsd->natoms, 3, 1, &num_elements);
+                    for (size_t i = 0; i < num_elements; ++i)
+                        {
+                        ts->coords[i] = particle_buffer[i];
+                        }
+                    }
+                }
+            else if (element_size == sizeof(float))
+                {
+                retval = read_chunk(gsd->handle,
+                                    ts->coords,
+                                    gsd->frame,
+                                    "particles/position",
+                                    gsd->natoms,
+                                    3,
+                                    element_size);
+                }
+
+            if (retval != GSD_SUCCESS)
+                {
+                vmdcon_printf(
+                    VMDCON_ERROR,
+                    "gsdplugin) Error reading particle positions from frame %d, aborting.\n",
+                    gsd->frame);
+                SAFE_FREE(particle_buffer);
+                ++gsd->frame;
+                return MOLFILE_ERROR;
+                }
             }
 
         // read frame velocities
         if (ts->velocities != NULL)
             {
-            retval = read_chunk(gsd->handle,
-                                ts->velocities,
-                                gsd->frame,
-                                "particles/velocity",
-                                gsd->natoms,
-                                3,
-                                sizeof(float));
-            if (retval == 1)
+            uint64_t velocity_frame = gsd->frame;
+            size_t element_size
+                = read_chunk_element_size(gsd->handle, velocity_frame, "particles/velocity");
+            if (element_size == 0)
                 {
+                velocity_frame = 0;
+                element_size
+                    = read_chunk_element_size(gsd->handle, velocity_frame, "particles/velocity");
+                }
+
+            int retval = GSD_ERROR_FILE_CORRUPT;
+            if (element_size == sizeof(double))
+                {
+                if (resize((void**)&particle_buffer,
+                           &particle_buffer_capacity,
+                           gsd->natoms,
+                           3,
+                           element_size)
+                    != 0)
+                    {
+                    vmdcon_printf(VMDCON_ERROR,
+                                  "gsdplugin) Error allocating buffer for particle velocities from "
+                                  "frame %d, aborting.\n",
+                                  gsd->frame);
+                    SAFE_FREE(particle_buffer);
+                    ++gsd->frame;
+                    return MOLFILE_ERROR;
+                    }
+
                 retval = read_chunk(gsd->handle,
-                                    ts->velocities,
-                                    0,
+                                    particle_buffer,
+                                    velocity_frame,
                                     "particles/velocity",
                                     gsd->natoms,
                                     3,
-                                    sizeof(float));
+                                    element_size);
+
+                if (retval == GSD_SUCCESS)
+                    {
+                    // this call is always safe because the malloc above succeed
+                    size_t num_elements = 0;
+                    safe_multiply_size(gsd->natoms, 3, 1, &num_elements);
+                    for (size_t i = 0; i < num_elements; ++i)
+                        {
+                        ts->velocities[i] = particle_buffer[i];
+                        }
+                    }
+                }
+            else if (element_size == sizeof(float))
+                {
+                retval = read_chunk(gsd->handle,
+                                    ts->velocities,
+                                    velocity_frame,
+                                    "particles/velocity",
+                                    gsd->natoms,
+                                    3,
+                                    element_size);
                 }
 
             if (retval != GSD_SUCCESS)
@@ -1080,11 +1319,15 @@ static int read_gsd_timestep(void* mydata, int natoms, molfile_timestep_t* ts)
                     VMDCON_ERROR,
                     "gsdplugin) Error reading particle velocities from frame %d, aborting.\n",
                     gsd->frame);
+                SAFE_FREE(particle_buffer);
                 ++gsd->frame;
                 return MOLFILE_ERROR;
                 }
             }
+
+        SAFE_FREE(particle_buffer);
         }
+
     ++gsd->frame;
 
     return MOLFILE_SUCCESS;
