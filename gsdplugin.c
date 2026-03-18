@@ -14,6 +14,14 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
+//! Safely multiply a 2d array size accounting for overflow.
+/*!
+ * \param N First array dimension
+ * \param M Second array dimension
+ * \param element_size Number of bytes per element
+ * \param total_size Total number of bytes for array (output)
+ * \returns 0 on success, -1 on error
+ */
 static int safe_multiply_size(size_t N, size_t M, size_t element_size, size_t* total_size)
     {
     if (N == 0 || M == 0 || element_size == 0)
@@ -34,6 +42,12 @@ static int safe_multiply_size(size_t N, size_t M, size_t element_size, size_t* t
     }
 
 //! Safely allocate a chunk of 2D memory without allowing overflow
+/*!
+ * \param N First array dimension
+ * \param M Second array dimension
+ * \param element_size Number of bytes per element
+ * \returns Allocated pointer on success or NULL on error
+ */
 static void* safe_malloc(size_t N, size_t M, size_t element_size)
     {
     size_t num_bytes = 0;
@@ -59,6 +73,14 @@ static void* safe_malloc(size_t N, size_t M, size_t element_size)
         } while (0)
 
 //! Resize memory
+/*!
+ * \param buffer Pointer to temporary memory (output)
+ * \param buffer_capacity Number of bytes the \a buffer can hold (output)
+ * \param N First array dimension
+ * \param M Second array dimension
+ * \param element_size Number of bytes per element
+ * \returns 0 on success, -1 on error
+ */
 static int resize(void** buffer, size_t* buffer_capacity, size_t N, size_t M, size_t element_size)
     {
     size_t num_bytes = 0;
@@ -268,6 +290,12 @@ static void free_gsd_trajectory(gsd_trajectory_t* gsd)
     }
 
 //! Read the size of a chunk element
+/*!
+ * \param handle Pointer to the GSD file handle
+ * \param frame Frame index
+ * \param name Name of chunk to read
+ * \returns Size of chunk in bytes, zero if not found.
+ */
 static size_t read_chunk_element_size(gsd_handle_t* handle, uint64_t frame, const char* name)
     {
     const struct gsd_index_entry* entry = gsd_find_chunk(handle, frame, name);
