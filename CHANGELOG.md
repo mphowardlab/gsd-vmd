@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-03-19
+### Added
+- Support for upcoming version 2 of HOOMD GSD schema, which adds an option for
+  64-bit floating-point values.
+
 ## [0.5.0] - 2026-03-12
 ### Fixed
 - Compatibility with modern CMake.
@@ -55,6 +60,7 @@ reading both GSD 1.0 (HOOMD < 2.9) and GSD 2.0 (HOOMD >= 2.9) files.
 The plugin is able to read particle and bond data. Angles, dihedrals,
 and writing are not currently supported.
 
+[0.6.0]: https://github.com/mphowardlab/gsd-vmd/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/mphowardlab/gsd-vmd/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/mphowardlab/gsd-vmd/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/mphowardlab/gsd-vmd/compare/v0.3.0...v0.4.0
