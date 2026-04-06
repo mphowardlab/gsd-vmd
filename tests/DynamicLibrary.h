@@ -13,13 +13,13 @@ class DynamicLibrary
     {
     public:
     //! Default constructor
-    DynamicLibrary() : handle_(NULL) {}
+    DynamicLibrary() : handle_(NULL) { }
 
     //! Constructor
     /*!
      * \param lib Library to open
      */
-    DynamicLibrary(const std::string& lib) : handle_(NULL), lib_(lib) {}
+    DynamicLibrary(const std::string& lib) : handle_(NULL), lib_(lib) { }
 
     //! Destructor
     ~DynamicLibrary()
