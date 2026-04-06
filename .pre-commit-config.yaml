@@ -9,7 +9,7 @@ exclude: |
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: check-added-large-files
       - id: check-merge-conflict
@@ -28,7 +28,7 @@ repos:
           - --add=Part of gsd-vmd, released under the BSD 3-Clause License.
           - --comment-prefix=//
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v21.1.8
+    rev: v22.1.2
     hooks:
       - id: clang-format
         types_or: [c, c++]
